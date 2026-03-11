@@ -154,12 +154,14 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
     // ── Active key tracking ───────────────────────────────────────────────
     const activeKeys    = new Set<number>();
     const activeTracks  = new Map<number, number>();
+    const activeHintKey = new Map<number, string>(); // pitch → hint map key for current moment
 
     notes.forEach((note) => {
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
       if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
+        activeHintKey.set(pitch, `${pitch}_${note.startTime.toFixed(3)}`);
       }
     });
 
@@ -258,15 +260,13 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
 
       // Finger on key
       if (showFingers && active) {
-        for (const [k, h] of fingerHints) {
-          if (h.pitch === midi) {
-            ctx.fillStyle    = '#111';
-            ctx.font         = `bold ${Math.min(geom.w * 0.6, 12)}px sans-serif`;
-            ctx.textAlign    = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(h.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH * 0.38);
-            break;
-          }
+        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
+        if (hint) {
+          ctx.fillStyle    = '#111';
+          ctx.font         = `bold ${Math.min(geom.w * 0.6, 12)}px sans-serif`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH * 0.38);
         }
       }
     }
@@ -286,15 +286,13 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
       ctx.strokeRect(SIDEBAR_WIDTH + geom.x, kbTop, geom.w, bkH);
 
       if (showFingers && active && geom.w >= 8) {
-        for (const [, h] of fingerHints) {
-          if (h.pitch === midi) {
-            ctx.fillStyle    = '#fff';
-            ctx.font         = `bold ${Math.min(geom.w * 0.7, 11)}px sans-serif`;
-            ctx.textAlign    = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(h.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + bkH * 0.38);
-            break;
-          }
+        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
+        if (hint) {
+          ctx.fillStyle    = '#fff';
+          ctx.font         = `bold ${Math.min(geom.w * 0.7, 11)}px sans-serif`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + bkH * 0.38);
         }
       }
     }

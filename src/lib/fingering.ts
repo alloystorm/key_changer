@@ -28,8 +28,16 @@ const BLACK_MIDI = new Set([1, 3, 6, 8, 10]);
 const isBlack = (p: number) => BLACK_MIDI.has(p % 12);
 const clamp   = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi : v;
 
+// White-key fractional index per semitone (C=0 … B=6).
+// Black keys sit at +0.5 between their white neighbours.
+// Strictly monotone across ALL 88 keys — the raw linear formula resets
+// non-monotonically at each octave edge (e.g. B4 ≈ 92 cm > C5 ≈ 83 cm).
+const WKI_IN_OCT = [0, 0.5, 1, 1.5, 2, 3, 3.5, 4, 4.5, 5, 5.5, 6];
+const WKW = 16.5 / 7; // cm per white-key interval
+
 function keyposMidi(pitch: number): number {
-  return 16.5 * Math.floor(pitch / 12) + (pitch % 12) * (16.5 / 7);
+  const oct = Math.floor(pitch / 12);
+  return (oct * 7 + WKI_IN_OCT[pitch % 12] + 0.5) * WKW;
 }
 
 // Hand constants - "M" size, hf = 0.82 (from pianoplayer/hand.py)
