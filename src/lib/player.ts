@@ -1,8 +1,8 @@
 import * as Tone from 'tone';
 import type { NoteEvent } from './types';
 
-// Soundfont base URL (midi.js soundfonts from GitHub CDN)
-const SOUNDFONT_BASE = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
+// Soundfont base path — bundled locally (see scripts/download-soundfonts.mjs)
+const SOUNDFONT_BASE = './soundfonts';
 
 // Map MIDI pitch to note name for soundfont-player
 const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
