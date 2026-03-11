@@ -145,6 +145,7 @@ export default function App() {
                 transpose={transpose}
                 currentTime={currentTime}
                 totalDuration={song.totalDuration}
+                bpm={song.bpm}
                 settings={rollSettings}
                 fingerHints={fingerHints}
               />

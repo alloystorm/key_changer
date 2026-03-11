@@ -27,8 +27,6 @@ function parseMusicXmlNotes(xml: string): { notes: NoteEvent[]; bpm: number; tot
   const soundEl = doc.querySelector('sound[tempo]');
   if (soundEl) bpm = parseFloat(soundEl.getAttribute('tempo') ?? '120');
 
-  const secondsPerBeat = 60 / bpm;
-
   const parts = Array.from(doc.querySelectorAll('part'));
   const allNotes: NoteEvent[] = [];
 
@@ -48,6 +46,7 @@ function parseMusicXmlNotes(xml: string): { notes: NoteEvent[]; bpm: number; tot
       const divsEl = measure.querySelector('divisions');
       if (divsEl) divisions = parseInt(divsEl.textContent ?? '1', 10);
 
+      const secondsPerBeat = 60 / bpm;
       const secondsPerDiv = secondsPerBeat / divisions;
 
       let chordOffset = 0; // for <chord> elements

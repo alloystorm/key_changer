@@ -69,11 +69,12 @@ interface Props {
   transpose: number;
   currentTime: number;
   totalDuration: number;
+  bpm: number;
   settings: RollSettings;
   fingerHints: Map<string, FingerHint>;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, settings, fingerHints }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fingerHints }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef      = useRef({ width: 0, height: 0 });
@@ -151,6 +152,50 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
       ctx.restore();
     }
 
+    // ── Measure lines (horizontal) ────────────────────────────────────────
+    if (bpm > 0) {
+      const secondsPerMeasure = (60 / bpm) * 4; // assume 4/4
+
+      // Visible time range (time at y=0 and y=rollHeight)
+      let tAtTop: number, tAtBottom: number;
+      if (flowDirection === 'down') {
+        tAtTop    = currentTime + playLineY / pxPerSecond;
+        tAtBottom = currentTime - (rollHeight - playLineY) / pxPerSecond;
+      } else {
+        tAtTop    = currentTime - playLineY / pxPerSecond;
+        tAtBottom = currentTime + (rollHeight - playLineY) / pxPerSecond;
+      }
+      const tMin = Math.min(tAtTop, tAtBottom) - secondsPerMeasure;
+      const tMax = Math.max(tAtTop, tAtBottom) + secondsPerMeasure;
+
+      ctx.save();
+      for (let m = Math.floor(tMin / secondsPerMeasure); m <= Math.ceil(tMax / secondsPerMeasure); m++) {
+        const t = m * secondsPerMeasure;
+        if (t < -secondsPerMeasure) continue;
+        const y = flowDirection === 'down'
+          ? playLineY - (t - currentTime) * pxPerSecond
+          : playLineY + (t - currentTime) * pxPerSecond;
+        if (y < 0 || y > rollHeight) continue;
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(SIDEBAR_WIDTH, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+
+        // Measure number in sidebar
+        if (m > 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.4)';
+          ctx.font = '9px sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(m), SIDEBAR_WIDTH - 3, y - 1);
+        }
+      }
+      ctx.restore();
+    }
+
     // ── Active key tracking ───────────────────────────────────────────────
     const activeKeys    = new Set<number>();
     const activeTracks  = new Map<number, number>();
@@ -210,8 +255,8 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
         ctx.fillRect(x, capY, w, 2);
       }
 
-      // Finger label inside bar
-      if (showFingers && noteH >= 14 && w >= 8) {
+      // Finger label at leading edge of bar (bottom for flow=down, top for flow=up)
+      if (showFingers && noteH >= 8 && w >= 8) {
         const key = `${pitch}_${note.startTime.toFixed(3)}`;
         const hint = fingerHints.get(key);
         if (hint) {
@@ -219,9 +264,14 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
           const fontSize = Math.min(w * 0.65, 13);
           ctx.font = `bold ${fontSize}px sans-serif`;
           ctx.textAlign    = 'center';
-          ctx.textBaseline = 'middle';
           ctx.fillStyle    = geom.isBlack ? '#fff' : '#111';
-          ctx.fillText(String(hint.finger), x + w / 2, yTop + noteH / 2);
+          if (flowDirection === 'down') {
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(String(hint.finger), x + w / 2, yBottom - 2);
+          } else {
+            ctx.textBaseline = 'top';
+            ctx.fillText(String(hint.finger), x + w / 2, yTop + 2);
+          }
         }
       }
 
@@ -297,12 +347,31 @@ export function PianoRollView({ notes, transpose, currentTime, settings, fingerH
       }
     }
 
+    // ── Clef symbols on keyboard ──────────────────────────────────────────
+    // Treble clef at G4 (MIDI 67), bass clef at F3 (MIDI 53)
+    const trebleGeom = keyGeom.get(67); // G4
+    const bassGeom   = keyGeom.get(53); // F3
+    ctx.save();
+    ctx.textBaseline = 'top';
+    ctx.textAlign    = 'center';
+    if (trebleGeom) {
+      ctx.font      = '22px serif';
+      ctx.fillStyle = 'rgba(80,80,80,0.7)';
+      ctx.fillText('\u{1D11E}', SIDEBAR_WIDTH + trebleGeom.x + trebleGeom.w / 2, kbTop + 4);
+    }
+    if (bassGeom) {
+      ctx.font      = '16px serif';
+      ctx.fillStyle = 'rgba(80,80,80,0.7)';
+      ctx.fillText('\u{1D122}', SIDEBAR_WIDTH + bassGeom.x + bassGeom.w / 2, kbTop + 4);
+    }
+    ctx.restore();
+
     // ── Sidebar ───────────────────────────────────────────────────────────
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
     ctx.fillRect(0, rollHeight, SIDEBAR_WIDTH, KEYBOARD_HEIGHT);
 
-  }, [notes, transpose, currentTime, flowDirection, triggerPosition, showFingers, fingerHints]);
+  }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, fingerHints]);
 
   // Resize observer
   useEffect(() => {
