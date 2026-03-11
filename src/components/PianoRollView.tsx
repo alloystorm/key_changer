@@ -1,6 +1,6 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import type { NoteEvent, RollSettings } from '../lib/types';
-import { computeFingerHints } from '../lib/fingering';
+import type { FingerHint } from '../lib/fingering';
 import './PianoRollView.css';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
@@ -70,21 +70,16 @@ interface Props {
   currentTime: number;
   totalDuration: number;
   settings: RollSettings;
+  fingerHints: Map<string, FingerHint>;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, settings }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, settings, fingerHints }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef      = useRef({ width: 0, height: 0 });
   const keyGeomRef   = useRef<Map<number, KeyGeom>>(new Map());
 
   const { flowDirection, triggerPosition, showFingers } = settings;
-
-  // Finger hints recomputed when relevant props change
-  const fingerHints = useMemo(() => {
-    if (!showFingers) return new Map();
-    return computeFingerHints(notes, transpose, currentTime, currentTime + VISIBLE_SECONDS);
-  }, [notes, transpose, currentTime, showFingers]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;

@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
+import { computeAllFingerHints } from './lib/fingering';
+import type { FingerHint } from './lib/fingering';
 import { player, PRE_ROLL } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { FileUpload } from './components/FileUpload';
@@ -26,6 +28,12 @@ export default function App() {
   const handleRollSettingsChange = useCallback((patch: Partial<RollSettings>) => {
     setRollSettings((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  // Compute finger hints for the whole song once; recompute on transpose or toggle.
+  const fingerHints = useMemo<Map<string, FingerHint>>(() => {
+    if (!song || !rollSettings.showFingers) return new Map();
+    return computeAllFingerHints(song.notes, transpose);
+  }, [song, transpose, rollSettings.showFingers]);
 
   // Wire player callbacks on mount
   useEffect(() => {
@@ -138,6 +146,7 @@ export default function App() {
                 currentTime={currentTime}
                 totalDuration={song.totalDuration}
                 settings={rollSettings}
+                fingerHints={fingerHints}
               />
             ) : (
               song.musicXml && (
