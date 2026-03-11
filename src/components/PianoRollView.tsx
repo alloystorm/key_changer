@@ -69,19 +69,11 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration }: 
       }
     }
 
-    // ── Play-head line ───────────────────────────────────────────────────────
-    const playLineY = rollHeight * 0.85;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(PIANO_KEY_WIDTH, playLineY);
-    ctx.lineTo(width, playLineY);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // Play line sits flush on the top edge of the keyboard
+    const playLineY = rollHeight;
 
     // ── Notes ─────────────────────────────────────────────────────────────
-    const pxPerSecond = playLineY / VISIBLE_SECONDS;
+    const pxPerSecond = rollHeight / VISIBLE_SECONDS;
 
     const activeKeys = new Set<number>();
 

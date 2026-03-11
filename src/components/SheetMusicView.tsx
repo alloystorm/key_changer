@@ -41,28 +41,13 @@ export function SheetMusicView({ xmlString, transpose, currentTime, isPlaying }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reload when xmlString changes
+  // Reload whenever xmlString or transpose changes
   useEffect(() => {
     const osmd = osmdRef.current;
     if (!osmd) return;
     loadAndRender(osmd, xmlString, transpose);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xmlString]);
-
-  // Re-render when transpose changes (without reloading)
-  useEffect(() => {
-    const osmd = osmdRef.current;
-    if (!osmd || !osmd.Sheet) return;
-    try {
-      (osmd.Sheet as unknown as { Transpose: number }).Transpose = transpose;
-      osmd.updateGraphic();
-      osmd.render();
-    } catch {
-      // fallback: full reload
-      loadAndRender(osmd, xmlString, transpose);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transpose]);
+  }, [transpose, xmlString]);
 
   // Cursor control
   useEffect(() => {
