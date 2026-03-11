@@ -413,25 +413,6 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
       }
     }
 
-    // ── Clef symbols on keyboard ──────────────────────────────────────────
-    // Treble clef at G4 (MIDI 67), bass clef at F3 (MIDI 53)
-    const trebleGeom = keyGeom.get(67); // G4
-    const bassGeom   = keyGeom.get(53); // F3
-    ctx.save();
-    ctx.textBaseline = 'top';
-    ctx.textAlign    = 'center';
-    if (trebleGeom) {
-      ctx.font      = '22px serif';
-      ctx.fillStyle = 'rgba(80,80,80,0.7)';
-      ctx.fillText('\u{1D11E}', SIDEBAR_WIDTH + trebleGeom.x + trebleGeom.w / 2, kbTop + 4);
-    }
-    if (bassGeom) {
-      ctx.font      = '16px serif';
-      ctx.fillStyle = 'rgba(80,80,80,0.7)';
-      ctx.fillText('\u{1D122}', SIDEBAR_WIDTH + bassGeom.x + bassGeom.w / 2, kbTop + 4);
-    }
-    ctx.restore();
-
     // ── Sidebar ───────────────────────────────────────────────────────────
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
