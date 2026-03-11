@@ -1,36 +1,90 @@
-import { useRef, useEffect, useCallback } from 'react';
-import type { NoteEvent } from '../lib/types';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
+import type { NoteEvent, RollSettings } from '../lib/types';
+import { computeFingerHints } from '../lib/fingering';
 import './PianoRollView.css';
 
-// ─── Layout constants ───────────────────────────────────────────────────────
-const PIANO_KEY_WIDTH = 52;     // px — width of the piano keyboard on the left
-const KEYBOARD_HEIGHT = 110;    // px — height of the piano keyboard at the bottom
-const WHITE_KEY_COUNT = 52;     // keys C2 to C9 (MIDI 36–96 roughly)
-const TOTAL_MIDI_NOTES = 88;    // A0 (21) to C8 (108)
-const MIDI_LOW = 21;            // A0
+// ─── Layout constants ────────────────────────────────────────────────────────
+const SIDEBAR_WIDTH = 36;       // left pitch-label sidebar
+const KEYBOARD_HEIGHT = 120;    // height of the piano keyboard strip
+const MIDI_LOW  = 21;           // A0
 const MIDI_HIGH = 108;          // C8
-const VISIBLE_SECONDS = 4;      // how many seconds of music are visible in the roll
+const VISIBLE_SECONDS = 4;      // seconds of music visible in the roll at once
+
 const NOTE_COLORS = [
   '#7c6af7', '#f77c6a', '#6af7b8', '#f7e96a',
   '#6ab4f7', '#f76ac8', '#aef76a',
 ];
 
-const isBlackKey = (midi: number): boolean => {
-  const mod = midi % 12;
-  return [1, 3, 6, 8, 10].includes(mod);
-};
+// Black-key MIDI semitone offsets within an octave
+const BLACK_OFFSETS = new Set([1, 3, 6, 8, 10]);
 
+function isBlack(midi: number) {
+  return BLACK_OFFSETS.has(midi % 12);
+}
+
+// ── Per-key geometry: x position and width aligned to the keyboard ───────────
+interface KeyGeom {
+  x: number;       // left edge relative to roll area (excludes sidebar)
+  w: number;       // width in pixels
+  isBlack: boolean;
+}
+
+function buildKeyGeometry(rollWidth: number): Map<number, KeyGeom> {
+  const whites: number[] = [];
+  for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
+    if (!isBlack(m)) whites.push(m);
+  }
+  const wkW = rollWidth / whites.length;
+  const bkW = wkW * 0.60;
+
+  const map = new Map<number, KeyGeom>();
+  whites.forEach((midi, i) => {
+    map.set(midi, { x: i * wkW, w: wkW - 1, isBlack: false });
+  });
+  whites.forEach((midi, i) => {
+    const nb = midi + 1;
+    if (isBlack(nb) && nb <= MIDI_HIGH) {
+      const cx = (i + 1) * wkW;
+      map.set(nb, { x: cx - bkW / 2, w: bkW, isBlack: true });
+    }
+  });
+  return map;
+}
+
+function triggerFrac(pos: RollSettings['triggerPosition']): number {
+  return pos === 'bottom' ? 1.0 : pos === 'middle' ? 0.5 : 0.15;
+}
+
+function shadeColor(hex: string, amount: number): string {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + amount));
+  const b = Math.max(0, Math.min(255, (num & 0xff) + amount));
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 interface Props {
   notes: NoteEvent[];
   transpose: number;
   currentTime: number;
   totalDuration: number;
+  settings: RollSettings;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, totalDuration }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function PianoRollView({ notes, transpose, currentTime, settings }: Props) {
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sizeRef = useRef({ width: 0, height: 0 });
+  const sizeRef      = useRef({ width: 0, height: 0 });
+  const keyGeomRef   = useRef<Map<number, KeyGeom>>(new Map());
+
+  const { flowDirection, triggerPosition, showFingers } = settings;
+
+  // Finger hints recomputed when relevant props change
+  const fingerHints = useMemo(() => {
+    if (!showFingers) return new Map();
+    return computeFingerHints(notes, transpose, currentTime, currentTime + VISIBLE_SECONDS);
+  }, [notes, transpose, currentTime, showFingers]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -41,157 +95,221 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration }: 
     const { width, height } = sizeRef.current;
     if (width === 0 || height === 0) return;
 
+    const rollWidth  = width - SIDEBAR_WIDTH;
     const rollHeight = height - KEYBOARD_HEIGHT;
-    const rollWidth = width - PIANO_KEY_WIDTH;
 
-    // ── Background ──────────────────────────────────────────────────────────
+    // Rebuild key geometry when width changes
+    const existingWkW = keyGeomRef.current.size > 0
+      ? (keyGeomRef.current.get(MIDI_LOW + 2)?.w ?? 0) + 1
+      : 0;
+    const expectedWkW = rollWidth / 52;
+    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
+      keyGeomRef.current = buildKeyGeometry(rollWidth);
+    }
+    const keyGeom = keyGeomRef.current;
+
+    // ── Background ────────────────────────────────────────────────────────
     ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, width, rollHeight);
+    ctx.fillRect(SIDEBAR_WIDTH, 0, rollWidth, rollHeight);
 
-    // ── Pitch lanes ─────────────────────────────────────────────────────────
-    const noteRange = MIDI_HIGH - MIDI_LOW + 1;
-    const laneH = rollHeight / noteRange;
-
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
-      const y = rollHeight - (midi - MIDI_LOW + 1) * laneH;
-      if (isBlackKey(midi)) {
-        ctx.fillStyle = '#161616';
-        ctx.fillRect(PIANO_KEY_WIDTH, y, rollWidth, laneH);
+    // ── Lane shading for black key columns ────────────────────────────────
+    keyGeom.forEach((geom, midi) => {
+      if (geom.isBlack) {
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, rollHeight);
       }
-      // Subtle octave lines
-      if (midi % 12 === 0) {
+    });
+
+    // Octave divider lines
+    for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
+      if (m % 12 === 0 && keyGeom.has(m)) {
+        const geom = keyGeom.get(m)!;
         ctx.strokeStyle = '#2a2a2a';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(PIANO_KEY_WIDTH, y + laneH);
-        ctx.lineTo(width, y + laneH);
+        ctx.moveTo(SIDEBAR_WIDTH + geom.x, 0);
+        ctx.lineTo(SIDEBAR_WIDTH + geom.x, rollHeight);
         ctx.stroke();
       }
     }
 
-    // Play line sits flush on the top edge of the keyboard
-    const playLineY = rollHeight;
+    // ── Play line & scaling ───────────────────────────────────────────────
+    const frac = triggerFrac(triggerPosition);
+    const playLineY = flowDirection === 'down'
+      ? rollHeight * frac
+      : rollHeight * (1 - frac);
 
-    // ── Notes ─────────────────────────────────────────────────────────────
-    const pxPerSecond = rollHeight / VISIBLE_SECONDS;
+    const travelPx = flowDirection === 'down' ? playLineY : rollHeight - playLineY;
+    const pxPerSecond = travelPx / VISIBLE_SECONDS;
 
-    const activeKeys = new Set<number>();
+    // Draw play-line only when not flush with keyboard edge
+    if (triggerPosition !== 'bottom') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(SIDEBAR_WIDTH, playLineY);
+      ctx.lineTo(width, playLineY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // ── Active key tracking ───────────────────────────────────────────────
+    const activeKeys    = new Set<number>();
+    const activeTracks  = new Map<number, number>();
 
     notes.forEach((note) => {
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
-      const noteStart = note.startTime;
-      const noteEnd = noteStart + note.duration;
+      if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
+        activeKeys.add(pitch);
+        activeTracks.set(pitch, note.track);
+      }
+    });
 
-      // Distance from current play position (seconds before playhead = positive)
-      const secBeforePlayhead = noteStart - currentTime;
-      const secBeforePlayheadEnd = noteEnd - currentTime;
+    // ── Draw notes (white pass, then black on top) ────────────────────────
+    const drawNote = (note: NoteEvent, blackPass: boolean) => {
+      const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
+      const geom = keyGeom.get(pitch);
+      if (!geom || geom.isBlack !== blackPass) return;
 
-      // y positions (notes fall downward — higher y = sooner)
-      const yTop = playLineY - secBeforePlayheadEnd * pxPerSecond;
-      const yBottom = playLineY - secBeforePlayhead * pxPerSecond;
-      const noteHeight = Math.max(yBottom - yTop, 2);
+      const secFromNow = note.startTime - currentTime;
+      const secEnd     = (note.startTime + note.duration) - currentTime;
 
-      // Skip notes that are off-screen
+      let yTop: number, yBottom: number;
+      if (flowDirection === 'down') {
+        yTop    = playLineY - secEnd     * pxPerSecond;
+        yBottom = playLineY - secFromNow * pxPerSecond;
+      } else {
+        const a = playLineY + secFromNow * pxPerSecond;
+        const b = playLineY + secEnd     * pxPerSecond;
+        yTop    = Math.min(a, b);
+        yBottom = Math.max(a, b);
+      }
+
+      const noteH = Math.max(yBottom - yTop, 3);
       if (yBottom < 0 || yTop > rollHeight) return;
 
-      // Track active keys (touching or crossing play line)
-      if (yTop <= playLineY && yBottom >= playLineY) {
-        activeKeys.add(pitch);
-      }
-
-      const x = PIANO_KEY_WIDTH + ((pitch - MIDI_LOW) / noteRange) * rollWidth;
-      const noteWidth = Math.max((1 / noteRange) * rollWidth - 1, 2);
-
+      const x = SIDEBAR_WIDTH + geom.x;
+      const w = geom.w;
       const color = NOTE_COLORS[note.track % NOTE_COLORS.length];
-      const alpha = yBottom < playLineY ? 0.5 : 1.0; // faded after playhead
 
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = color;
-      // Rounded rect
-      const radius = Math.min(noteWidth / 2, 3);
+      const isPast = flowDirection === 'down' ? yBottom < playLineY : yTop > playLineY;
+      ctx.globalAlpha = isPast ? 0.4 : 1.0;
+      ctx.fillStyle   = geom.isBlack ? shadeColor(color, -35) : color;
+
+      const radius = Math.min(w / 2, 4);
       ctx.beginPath();
-      ctx.roundRect(x, yTop, noteWidth, noteHeight, radius);
+      ctx.roundRect(x, yTop, w, noteH, radius);
       ctx.fill();
 
-      // Bright top edge for active notes
-      if (activeKeys.has(pitch)) {
-        ctx.fillStyle = '#fff';
-        ctx.globalAlpha = 0.6;
-        ctx.fillRect(x, yTop, noteWidth, Math.min(2, noteHeight));
+      // Leading-edge bright cap for active notes
+      const isActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
+      if (isActive) {
+        ctx.fillStyle   = '#fff';
+        ctx.globalAlpha = 0.75;
+        const capY = flowDirection === 'down' ? yTop : yBottom - 2;
+        ctx.fillRect(x, capY, w, 2);
       }
+
+      // Finger label inside bar
+      if (showFingers && noteH >= 14 && w >= 8) {
+        const key = `${pitch}_${note.startTime.toFixed(3)}`;
+        const hint = fingerHints.get(key);
+        if (hint) {
+          ctx.globalAlpha = 1;
+          const fontSize = Math.min(w * 0.65, 13);
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle    = geom.isBlack ? '#fff' : '#111';
+          ctx.fillText(String(hint.finger), x + w / 2, yTop + noteH / 2);
+        }
+      }
+
       ctx.globalAlpha = 1;
-    });
+    };
 
-    // ── Piano keyboard ────────────────────────────────────────────────────
+    notes.forEach((n) => drawNote(n, false));
+    notes.forEach((n) => drawNote(n, true));
+
+    // ── Keyboard ──────────────────────────────────────────────────────────
+    const kbTop = rollHeight;
+    const wkH   = KEYBOARD_HEIGHT - 1;
+    const bkH   = KEYBOARD_HEIGHT * 0.58;
+
     // White keys
-    let whiteKeyX = PIANO_KEY_WIDTH;
-    const whiteKeyWidth = rollWidth / WHITE_KEY_COUNT;
-    const whiteKeyH = KEYBOARD_HEIGHT - 1;
+    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
+      if (isBlack(midi)) continue;
+      const geom = keyGeom.get(midi)!;
+      const active = activeKeys.has(midi);
+      const trackIdx = activeTracks.get(midi) ?? 0;
 
-    // Collect white keys in order
-    const whiteKeys: number[] = [];
-    for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
-      if (!isBlackKey(m)) whiteKeys.push(m);
-    }
+      ctx.fillStyle  = active ? NOTE_COLORS[trackIdx % NOTE_COLORS.length] : '#f0f0f0';
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth  = 0.5;
+      ctx.fillRect  (SIDEBAR_WIDTH + geom.x, kbTop, geom.w, wkH);
+      ctx.strokeRect(SIDEBAR_WIDTH + geom.x, kbTop, geom.w, wkH);
 
-    whiteKeys.forEach((midi, i) => {
-      const x = PIANO_KEY_WIDTH + i * whiteKeyWidth;
-      const isActive = activeKeys.has(midi);
-      ctx.fillStyle = isActive
-        ? NOTE_COLORS[(notes.find(n => n.pitch + transpose === midi)?.track ?? 0) % NOTE_COLORS.length]
-        : '#f0f0f0';
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 0.5;
-      ctx.fillRect(x, rollHeight, whiteKeyWidth - 1, whiteKeyH);
-      ctx.strokeRect(x, rollHeight, whiteKeyWidth - 1, whiteKeyH);
-      // label C notes
+      // C label
       if (midi % 12 === 0) {
-        ctx.fillStyle = '#666';
-        ctx.font = '9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`C${Math.floor(midi / 12) - 1}`, x + whiteKeyWidth / 2, rollHeight + whiteKeyH - 4);
+        ctx.fillStyle    = active ? 'rgba(0,0,0,0.5)' : '#999';
+        ctx.font         = '8px sans-serif';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`C${Math.floor(midi / 12) - 1}`, SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH - 2);
       }
-      whiteKeyX += whiteKeyWidth;
-    });
 
-    // Black keys (drawn on top)
-    const blackKeyWidth = whiteKeyWidth * 0.6;
-    const blackKeyH = KEYBOARD_HEIGHT * 0.6;
-
-    whiteKeys.forEach((midi, i) => {
-      const x = PIANO_KEY_WIDTH + i * whiteKeyWidth;
-      // Draw black key to the right of each white key that needs one
-      const nextBlack = midi + 1;
-      if (isBlackKey(nextBlack) && nextBlack <= MIDI_HIGH) {
-        const bx = x + whiteKeyWidth - blackKeyWidth / 2;
-        const isActive = activeKeys.has(nextBlack);
-        ctx.fillStyle = isActive
-          ? NOTE_COLORS[(notes.find(n => n.pitch + transpose === nextBlack)?.track ?? 0) % NOTE_COLORS.length]
-          : '#1a1a1a';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 0.5;
-        ctx.fillRect(bx, rollHeight, blackKeyWidth, blackKeyH);
-        ctx.strokeRect(bx, rollHeight, blackKeyWidth, blackKeyH);
+      // Finger on key
+      if (showFingers && active) {
+        for (const [k, h] of fingerHints) {
+          if (h.pitch === midi) {
+            ctx.fillStyle    = '#111';
+            ctx.font         = `bold ${Math.min(geom.w * 0.6, 12)}px sans-serif`;
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(h.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH * 0.38);
+            break;
+          }
+        }
       }
-    });
-
-    // Left pitch sidebar background
-    ctx.fillStyle = '#0d0d0d';
-    ctx.fillRect(0, 0, PIANO_KEY_WIDTH, height);
-
-    // Sidebar pitch labels
-    ctx.fillStyle = '#555';
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'right';
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi += 12) {
-      const y = rollHeight - (midi - MIDI_LOW) * laneH - laneH / 2;
-      ctx.fillText(`C${Math.floor(midi / 12) - 1}`, PIANO_KEY_WIDTH - 4, y + 4);
     }
 
-    // Bottom-left corner fill
+    // Black keys (on top)
+    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
+      if (!isBlack(midi)) continue;
+      const geom = keyGeom.get(midi);
+      if (!geom) continue;
+      const active   = activeKeys.has(midi);
+      const trackIdx = activeTracks.get(midi) ?? 0;
+
+      ctx.fillStyle  = active ? shadeColor(NOTE_COLORS[trackIdx % NOTE_COLORS.length], -20) : '#1a1a1a';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth  = 0.5;
+      ctx.fillRect  (SIDEBAR_WIDTH + geom.x, kbTop, geom.w, bkH);
+      ctx.strokeRect(SIDEBAR_WIDTH + geom.x, kbTop, geom.w, bkH);
+
+      if (showFingers && active && geom.w >= 8) {
+        for (const [, h] of fingerHints) {
+          if (h.pitch === midi) {
+            ctx.fillStyle    = '#fff';
+            ctx.font         = `bold ${Math.min(geom.w * 0.7, 11)}px sans-serif`;
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(h.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + bkH * 0.38);
+            break;
+          }
+        }
+      }
+    }
+
+    // ── Sidebar ───────────────────────────────────────────────────────────
     ctx.fillStyle = '#0d0d0d';
-    ctx.fillRect(0, rollHeight, PIANO_KEY_WIDTH, KEYBOARD_HEIGHT);
-  }, [notes, transpose, currentTime]);
+    ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
+    ctx.fillRect(0, rollHeight, SIDEBAR_WIDTH, KEYBOARD_HEIGHT);
+
+  }, [notes, transpose, currentTime, flowDirection, triggerPosition, showFingers, fingerHints]);
 
   // Resize observer
   useEffect(() => {
@@ -201,10 +319,11 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration }: 
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         sizeRef.current = { width, height };
+        keyGeomRef.current = new Map(); // force geometry rebuild
         const canvas = canvasRef.current;
         if (canvas) {
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width  = Math.round(width);
+          canvas.height = Math.round(height);
         }
         draw();
       }
@@ -213,10 +332,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration }: 
     return () => ro.disconnect();
   }, [draw]);
 
-  // Redraw on every prop change
-  useEffect(() => {
-    draw();
-  }, [draw]);
+  useEffect(() => { draw(); }, [draw]);
 
   return (
     <div ref={containerRef} className="piano-roll-view">

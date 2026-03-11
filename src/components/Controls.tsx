@@ -1,5 +1,5 @@
 import type { PlayerStatus } from '../lib/player';
-import type { ViewMode } from '../lib/types';
+import type { ViewMode, RollSettings } from '../lib/types';
 import './Controls.css';
 
 // ── Key name helpers ────────────────────────────────────────────────────────
@@ -33,6 +33,8 @@ interface Props {
   onViewModeChange: (mode: ViewMode) => void;
   onChangeFile: () => void;
   filename: string;
+  rollSettings: RollSettings;
+  onRollSettingsChange: (s: Partial<RollSettings>) => void;
 }
 
 export function Controls({
@@ -51,6 +53,8 @@ export function Controls({
   onViewModeChange,
   onChangeFile,
   filename,
+  rollSettings,
+  onRollSettingsChange,
 }: Props) {
   const isPlaying = status === 'playing';
   const isLoading = status === 'loading';
@@ -152,6 +156,47 @@ export function Controls({
           <span className="bpm-unit">BPM</span>
         </div>
       </div>
+
+      {/* ── Row 3: roll settings (only in piano roll mode) ─────────── */}
+      {viewMode === 'pianoroll' && (
+        <div className="controls-row controls-row--settings">
+          <span className="settings-label">Flow</span>
+          <div className="settings-group">
+            {(['down', 'up'] as const).map((d) => (
+              <button
+                key={d}
+                className={`btn btn-xs ${ rollSettings.flowDirection === d ? 'btn-active' : '' }`}
+                onClick={() => onRollSettingsChange({ flowDirection: d })}
+              >
+                {d === 'down' ? '⬇ Down' : '⬆ Up'}
+              </button>
+            ))}
+          </div>
+
+          <span className="settings-label">Trigger</span>
+          <div className="settings-group">
+            {(['bottom', 'middle', 'top'] as const).map((p) => (
+              <button
+                key={p}
+                className={`btn btn-xs ${ rollSettings.triggerPosition === p ? 'btn-active' : '' }`}
+                onClick={() => onRollSettingsChange({ triggerPosition: p })}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <span className="settings-sep" />
+
+          <button
+            className={`btn btn-xs ${ rollSettings.showFingers ? 'btn-active' : '' }`}
+            onClick={() => onRollSettingsChange({ showFingers: !rollSettings.showFingers })}
+            title="Show beginner finger numbers (1–5) on notes and keys"
+          >
+            🖐 Fingers
+          </button>
+        </div>
+      )}
     </div>
   );
 }

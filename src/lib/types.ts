@@ -27,3 +27,20 @@ export interface ParsedSong {
 export type FileType = 'midi' | 'mxl';
 
 export type ViewMode = 'pianoroll' | 'sheet';
+
+/** Which direction notes travel */
+export type FlowDirection = 'down' | 'up';
+
+/**
+ * Where on the roll the "play line" (trigger point) sits.
+ * 'bottom' = flush with keyboard (default, notes fall onto keys)
+ * 'middle' = halfway up the roll
+ * 'top'    = near the top (notes travel a long way before triggering)
+ */
+export type TriggerPosition = 'bottom' | 'middle' | 'top';
+
+export interface RollSettings {
+  flowDirection: FlowDirection;
+  triggerPosition: TriggerPosition;
+  showFingers: boolean;
+}

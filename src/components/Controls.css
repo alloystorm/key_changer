@@ -193,3 +193,33 @@
   color: #666;
   text-transform: uppercase;
 }
+
+/* ── Settings row ────────────────────────────────────────── */
+.controls-row--settings {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #222;
+}
+
+.settings-label {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.settings-group {
+  display: flex;
+  gap: 3px;
+}
+
+.btn-xs {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.settings-sep {
+  flex: 1;
+}

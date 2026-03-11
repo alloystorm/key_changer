@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ParsedSong, ViewMode } from './lib/types';
+import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
 import { player } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { FileUpload } from './components/FileUpload';
@@ -17,6 +17,15 @@ export default function App() {
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>('idle');
   const [currentTime, setCurrentTime] = useState(0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
+  const [rollSettings, setRollSettings] = useState<RollSettings>({
+    flowDirection: 'down',
+    triggerPosition: 'bottom',
+    showFingers: false,
+  });
+
+  const handleRollSettingsChange = useCallback((patch: Partial<RollSettings>) => {
+    setRollSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // Wire player callbacks on mount
   useEffect(() => {
@@ -117,6 +126,8 @@ export default function App() {
             onViewModeChange={setViewMode}
             onChangeFile={handleChangeFile}
             filename={song.filename}
+            rollSettings={rollSettings}
+            onRollSettingsChange={handleRollSettingsChange}
           />
 
           <div className="view-area">
@@ -126,6 +137,7 @@ export default function App() {
                 transpose={transpose}
                 currentTime={currentTime}
                 totalDuration={song.totalDuration}
+                settings={rollSettings}
               />
             ) : (
               song.musicXml && (
