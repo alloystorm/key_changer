@@ -1,0 +1,58 @@
+.file-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px dashed #555;
+  border-radius: 12px;
+  padding: 40px 24px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: #1a1a1a;
+  color: #aaa;
+  user-select: none;
+}
+
+.file-upload:hover,
+.file-upload:focus {
+  border-color: #7c6af7;
+  background: #1f1d2e;
+  outline: none;
+}
+
+.file-upload.loading {
+  cursor: wait;
+  border-color: #7c6af7;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.upload-icon {
+  font-size: 36px;
+  line-height: 1;
+}
+
+.upload-primary {
+  margin: 0;
+  font-size: 15px;
+  color: #ddd;
+  font-weight: 600;
+}
+
+.upload-secondary {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
+}
+
+.upload-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #555;
+  font-family: monospace;
+}

@@ -1,0 +1,13 @@
+.piano-roll-view {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.piano-roll-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

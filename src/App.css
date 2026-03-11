@@ -1,0 +1,88 @@
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #111;
+  color: #ddd;
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #161616;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+.app-logo { font-size: 22px; }
+
+.app-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+/* ── Landing ─────────────────────────────────────────────────── */
+.app-landing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px 24px;
+}
+
+.app-landing .file-upload {
+  width: 100%;
+  max-width: 480px;
+}
+
+.landing-hint {
+  font-size: 13px;
+  color: #555;
+}
+
+.landing-hint b { color: #888; }
+
+.sep { margin: 0 4px; color: #444; }
+
+/* ── Player layout ───────────────────────────────────────────── */
+.app-player {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.view-area {
+  flex: 1;
+  overflow: hidden;
+  padding: 10px;
+}
+
+/* ── Error banner ────────────────────────────────────────────── */
+.error-banner {
+  background: #3f1a1a;
+  border: 1px solid #7a2a2a;
+  color: #f7a0a0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  max-width: 480px;
+  text-align: center;
+}

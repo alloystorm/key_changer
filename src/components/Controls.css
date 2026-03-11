@@ -1,0 +1,195 @@
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.controls-row--top {
+  justify-content: space-between;
+}
+
+.controls-row--transport {
+  gap: 12px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: background 0.15s, opacity 0.15s;
+  padding: 6px 10px;
+  background: #2a2a2a;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: #3a3a3a;
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btn-sm {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 16px;
+  border-radius: 50%;
+}
+
+.btn-primary {
+  background: #7c6af7;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #9384f8;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #888;
+  border: 1px solid #333;
+  max-width: 260px;
+  overflow: hidden;
+}
+
+.btn-active {
+  background: #7c6af7;
+  color: #fff;
+}
+
+/* ── Filename ───────────────────────────────────────────── */
+.filename {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ── View toggle ─────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+/* ── Transport ───────────────────────────────────────────── */
+.transport-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Seek bar ────────────────────────────────────────────── */
+.seek-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.seek-bar {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #7c6af7;
+  cursor: pointer;
+}
+
+.time-label {
+  font-size: 11px;
+  color: #888;
+  font-family: monospace;
+  min-width: 34px;
+}
+
+/* ── Key shift ───────────────────────────────────────────── */
+.key-shift {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.key-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 36px;
+}
+
+.key-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.key-offset {
+  font-size: 10px;
+  color: #7c6af7;
+  line-height: 1;
+}
+
+/* ── BPM ─────────────────────────────────────────────────── */
+.bpm-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 40px;
+  padding-left: 8px;
+  border-left: 1px solid #333;
+}
+
+.bpm-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ddd;
+  line-height: 1.1;
+}
+
+.bpm-unit {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+}

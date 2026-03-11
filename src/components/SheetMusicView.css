@@ -1,0 +1,12 @@
+.sheet-music-view {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.osmd-container {
+  padding: 16px;
+  min-height: 200px;
+}
