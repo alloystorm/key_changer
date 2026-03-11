@@ -63,6 +63,61 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
+/**
+ * Draws a miniature music-notation duration symbol centred at (cx, cy).
+ * beats: note duration in quarter-note beats (e.g. 4=whole, 2=half, 1=quarter, 0.5=eighth, 0.25=sixteenth)
+ */
+function drawDurationSymbol(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  sz: number,   // notehead radius in px
+  color: string,
+  beats: number,
+): void {
+  const filled  = beats < 2.0;      // whole notes are open, everything else filled
+  const hasStem = beats < 4.0;
+  const flags   = beats < 0.25 ? 2 : beats < 0.5 ? 1 : 0;
+  const lw = Math.max(0.8, sz * 0.22);
+
+  // Tilted notehead
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle   = color;
+  ctx.lineWidth   = lw;
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.28);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, sz * 1.15, sz * 0.7, 0, 0, Math.PI * 2);
+  if (filled) { ctx.fill(); } else { ctx.stroke(); }
+  ctx.restore();
+
+  // Stem and flags (unrotated, origin at original cx/cy)
+  if (hasStem) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lw;
+    const stemX   = cx + sz * 1.0;
+    const stemTop = cy - sz * 3.0;
+    ctx.beginPath();
+    ctx.moveTo(stemX, cy - sz * 0.4);
+    ctx.lineTo(stemX, stemTop);
+    ctx.stroke();
+    for (let f = 0; f < flags; f++) {
+      const fy = stemTop + f * sz * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(stemX, fy);
+      ctx.bezierCurveTo(
+        stemX + sz * 1.8, fy + sz * 0.5,
+        stemX + sz * 1.4, fy + sz * 1.3,
+        stemX,            fy + sz * 2.1,
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 interface Props {
   notes: NoteEvent[];
@@ -253,6 +308,17 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
         ctx.globalAlpha = 0.75;
         const capY = flowDirection === 'down' ? yTop : yBottom - 2;
         ctx.fillRect(x, capY, w, 2);
+      }
+
+      // Duration symbol in centre of bar
+      if (noteH >= 22 && w >= 10) {
+        const beats = note.duration * (bpm / 60);
+        const sz = Math.min(w * 0.3, 4.0);
+        // Position cy in lower 65% so the stem (going up 3×sz) stays inside the bar
+        const cy = yTop + noteH * 0.65;
+        const cx = x + w / 2 - sz * 0.3; // shift left so head+stem centred visually
+        ctx.globalAlpha = 0.75;
+        drawDurationSymbol(ctx, cx, cy, sz, geom.isBlack ? '#fff' : '#111', beats);
       }
 
       // Finger label at leading edge of bar (bottom for flow=down, top for flow=up)
