@@ -58,7 +58,8 @@ export function Controls({
 }: Props) {
   const isPlaying = status === 'playing';
   const isLoading = status === 'loading';
-  const progress = totalDuration > 0 ? currentTime / totalDuration : 0;
+  // Clamp to 0 during the pre-roll phase so the UI never shows negative time
+  const displayTime = Math.max(0, currentTime);
 
   return (
     <div className="controls">
@@ -110,14 +111,14 @@ export function Controls({
 
         {/* Seek bar */}
         <div className="seek-area">
-          <span className="time-label">{formatTime(currentTime)}</span>
+          <span className="time-label">{formatTime(displayTime)}</span>
           <input
             type="range"
             className="seek-bar"
             min={0}
             max={totalDuration || 1}
             step={0.1}
-            value={currentTime}
+            value={displayTime}
             onChange={(e) => onSeek(parseFloat(e.target.value))}
             disabled={isLoading}
           />

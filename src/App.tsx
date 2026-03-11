@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
-import { player } from './lib/player';
+import { player, PRE_ROLL } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
@@ -42,7 +42,7 @@ export default function App() {
     setSong(loaded);
     setTranspose(0);
     transposeRef.current = 0;
-    setCurrentTime(0);
+    setCurrentTime(-PRE_ROLL);
     setViewMode('pianoroll');
 
     await player.load(loaded.notes, loaded.bpm, 0);
@@ -63,7 +63,7 @@ export default function App() {
 
   const handleStop = useCallback(() => {
     player.stop();
-    setCurrentTime(0);
+    setCurrentTime(-PRE_ROLL);
   }, []);
 
   const handleSeek = useCallback((t: number) => {
