@@ -124,7 +124,7 @@ export function Controls({
         </div>
 
         {/* BPM / Speed Control */}
-        <div 
+        <div
           className="bpm-display"
           title="Drag up/down to change speed, double-click to reset"
           onMouseDown={(e) => {
@@ -132,6 +132,7 @@ export function Controls({
             const startY = e.clientY;
             const startRate = playbackRate;
             const onMouseMove = (moveEvent: MouseEvent) => {
+              moveEvent.stopPropagation();
               const deltaY = startY - moveEvent.clientY;
               const newRate = startRate + (deltaY / 100);
               onPlaybackRateChange(newRate);
