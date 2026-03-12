@@ -18,22 +18,86 @@ html, body, #root {
 
 /* ── Header ──────────────────────────────────────────────────── */
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: #161616;
   border-bottom: 1px solid #2a2a2a;
   flex-shrink: 0;
+  gap: 16px;
 }
 
-.app-logo { font-size: 22px; }
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.btn-home {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.btn-home:hover {
+  background: #222;
+}
+
+.app-logo { font-size: 20px; }
 
 .app-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: #fff;
+}
+
+.header-center {
+  text-align: center;
+  overflow: hidden;
+}
+
+.current-song-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+  display: block;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Reusing some button styles from Controls but keeping them here for header */
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.btn-active {
+  background: #333;
+  color: #fff;
+}
+
+.btn-fingers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ── Landing ─────────────────────────────────────────────────── */

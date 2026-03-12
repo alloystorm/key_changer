@@ -31,9 +31,6 @@ interface Props {
   onSeek: (t: number) => void;
   onViewModeChange: (mode: ViewMode) => void;
   onChangeFile: () => void;
-  filename: string;
-  rollSettings: RollSettings;
-  onRollSettingsChange: (s: Partial<RollSettings>) => void;
 }
 
 export function Controls({
@@ -50,9 +47,6 @@ export function Controls({
   onSeek,
   onViewModeChange,
   onChangeFile,
-  filename,
-  rollSettings,
-  onRollSettingsChange,
 }: Props) {
   const isPlaying = status === 'playing';
   const isLoading = status === 'loading';
@@ -61,35 +55,7 @@ export function Controls({
 
   return (
     <div className="controls">
-      {/* ── Row 1: file name + view toggle ─────────────────────────── */}
-      <div className="controls-row controls-row--top">
-        <button className="btn btn-ghost btn-sm" onClick={onChangeFile} title="Load different file">
-          📂 <span className="filename">{filename}</span>
-        </button>
-
-        <div className="view-toggle">
-          <button
-            className={`btn btn-sm ${viewMode === 'pianoroll' ? 'btn-active' : ''}`}
-            onClick={() => onViewModeChange('pianoroll')}
-          >
-            📊 Bar
-          </button>
-          <button
-            className={`btn btn-sm ${viewMode === 'sheet' ? 'btn-active' : ''}`}
-            onClick={() => onViewModeChange('sheet')}
-          >
-            🎼 Sheet
-          </button>
-          <button
-            className={`btn btn-sm ${viewMode === 'both' ? 'btn-active' : ''}`}
-            onClick={() => onViewModeChange('both')}
-          >
-            📊🎼 Both
-          </button>
-        </div>
-      </div>
-
-      {/* ── Row 2: transport + key shift ───────────────────────────── */}
+      {/* ── Transport + key shift ── */}
       <div className="controls-row controls-row--transport">
         {/* Playback buttons */}
         <div className="transport-buttons">
@@ -159,47 +125,6 @@ export function Controls({
           <span className="bpm-unit">BPM</span>
         </div>
       </div>
-
-      {/* ── Row 3: roll settings (in bar or combined mode) ──────────── */}
-      {(viewMode === 'pianoroll' || viewMode === 'both') && (
-        <div className="controls-row controls-row--settings">
-          <span className="settings-label">Flow</span>
-          <div className="settings-group">
-            {(['down', 'up'] as const).map((d) => (
-              <button
-                key={d}
-                className={`btn btn-xs ${ rollSettings.flowDirection === d ? 'btn-active' : '' }`}
-                onClick={() => onRollSettingsChange({ flowDirection: d })}
-              >
-                {d === 'down' ? '⬇ Down' : '⬆ Up'}
-              </button>
-            ))}
-          </div>
-
-          <span className="settings-label">Trigger</span>
-          <div className="settings-group">
-            {(['bottom', 'middle', 'top'] as const).map((p) => (
-              <button
-                key={p}
-                className={`btn btn-xs ${ rollSettings.triggerPosition === p ? 'btn-active' : '' }`}
-                onClick={() => onRollSettingsChange({ triggerPosition: p })}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          <span className="settings-sep" />
-
-          <button
-            className={`btn btn-xs ${ rollSettings.showFingers ? 'btn-active' : '' }`}
-            onClick={() => onRollSettingsChange({ showFingers: !rollSettings.showFingers })}
-            title="Show beginner finger numbers (1–5) on notes and keys"
-          >
-            🖐 Fingers
-          </button>
-        </div>
-      )}
     </div>
   );
 }

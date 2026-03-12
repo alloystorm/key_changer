@@ -162,8 +162,43 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-logo">🎹</span>
-        <span className="app-title">ShiftPiano</span>
+        <div className="header-left">
+          <button className="btn-home" onClick={handleChangeFile} title="Go to home">
+            <span className="app-logo">🎹</span>
+            <span className="app-title">ShiftPiano</span>
+          </button>
+        </div>
+        
+        {song && (
+          <div className="header-center">
+            <span className="current-song-name">{song.filename}</span>
+          </div>
+        )}
+
+        <div className="header-right">
+          {song && (
+            <>
+              <div className="view-toggle">
+                {(['pianoroll', 'sheet', 'both'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`btn btn-sm ${viewMode === mode ? 'btn-active' : ''}`}
+                    onClick={() => setViewMode(mode)}
+                  >
+                    {mode === 'pianoroll' ? '📊 Bar' : mode === 'sheet' ? '🎼 Sheet' : '📊🎼 Both'}
+                  </button>
+                ))}
+              </div>
+              <button
+                className={`btn btn-sm btn-fingers ${rollSettings.showFingers ? 'btn-active' : ''}`}
+                onClick={() => handleRollSettingsChange({ showFingers: !rollSettings.showFingers })}
+                title="Show beginner finger numbers (1–5)"
+              >
+                🖐 Fingers
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       {!song ? (
@@ -213,9 +248,6 @@ export default function App() {
             onSeek={handleSeek}
             onViewModeChange={setViewMode}
             onChangeFile={handleChangeFile}
-            filename={song.filename}
-            rollSettings={rollSettings}
-            onRollSettingsChange={handleRollSettingsChange}
           />
 
           <div className={`view-area${viewMode === 'both' ? ' view-area--split' : ''}`}>

@@ -14,10 +14,6 @@
   flex-wrap: wrap;
 }
 
-.controls-row--top {
-  justify-content: space-between;
-}
-
 .controls-row--transport {
   gap: 12px;
 }
@@ -85,17 +81,6 @@
   color: #fff;
 }
 
-/* ── Filename ───────────────────────────────────────────── */
-.filename {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
-}
-
-/* ── View toggle ─────────────────────────────────────────── */
 .view-toggle {
   display: flex;
   gap: 4px;
@@ -194,32 +179,4 @@
   text-transform: uppercase;
 }
 
-/* ── Settings row ────────────────────────────────────────── */
-.controls-row--settings {
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid #222;
-}
 
-.settings-label {
-  font-size: 11px;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.settings-group {
-  display: flex;
-  gap: 3px;
-}
-
-.btn-xs {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 5px;
-}
-
-.settings-sep {
-  flex: 1;
-}
