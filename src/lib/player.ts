@@ -57,6 +57,8 @@ export class Player {
 
   private rafId: number | null = null;
   private uniquePitches: Set<number> = new Set();
+  private lastRescheduleAt = 0;
+  private rescheduleTimer: number | null = null;
 
   private setStatus(s: PlayerStatus) {
     this.status = s;
@@ -185,10 +187,26 @@ export class Player {
     this.playbackRate = rate;
     
     if (wasPlaying) {
-      this.clearScheduled();
-      this.pausedAt = currentTime;
-      this.play();
+      if (this.rescheduleTimer) clearTimeout(this.rescheduleTimer);
+      
+      const now = Date.now();
+      if (now - this.lastRescheduleAt > 150) {
+        this.doReschedule(currentTime);
+      } else {
+        this.rescheduleTimer = window.setTimeout(() => {
+          this.doReschedule(this.getCurrentTime());
+        }, 150);
+      }
     }
+  }
+
+  private doReschedule(time: number): void {
+    if (this.status !== 'playing') return;
+    this.lastRescheduleAt = Date.now();
+    this.rescheduleTimer = null;
+    this.clearScheduled();
+    this.pausedAt = time;
+    this.play();
   }
 
   /** Call when transpose changes — reload buffers for new pitches then reschedule */
