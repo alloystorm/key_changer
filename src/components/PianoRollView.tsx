@@ -310,8 +310,12 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
         ctx.fillRect(x, capY, w, 2);
       }
 
-      // Duration symbol in centre of bar
-      if (noteH >= 22 && w >= 10) {
+      // Pre-compute finger hint so we can give it priority over the duration symbol
+      const fingerKey  = `${pitch}_${note.startTime.toFixed(3)}`;
+      const fingerHint = showFingers ? fingerHints.get(fingerKey) : undefined;
+
+      // Duration symbol — omitted when a finger hint will be shown (finger wins)
+      if (noteH >= 22 && w >= 10 && !fingerHint) {
         const beats = note.duration * (bpm / 60);
         const sz = Math.min(w * 0.3, 4.0);
         // Position cy in lower 65% so the stem (going up 3×sz) stays inside the bar
@@ -322,22 +326,18 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
       }
 
       // Finger label at leading edge of bar (bottom for flow=down, top for flow=up)
-      if (showFingers && noteH >= 8 && w >= 8) {
-        const key = `${pitch}_${note.startTime.toFixed(3)}`;
-        const hint = fingerHints.get(key);
-        if (hint) {
-          ctx.globalAlpha = 1;
-          const fontSize = Math.min(w * 0.65, 13);
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          ctx.textAlign    = 'center';
-          ctx.fillStyle    = geom.isBlack ? '#fff' : '#111';
-          if (flowDirection === 'down') {
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(String(hint.finger), x + w / 2, yBottom - 2);
-          } else {
-            ctx.textBaseline = 'top';
-            ctx.fillText(String(hint.finger), x + w / 2, yTop + 2);
-          }
+      if (fingerHint && noteH >= 8 && w >= 8) {
+        ctx.globalAlpha = 1;
+        const fontSize = Math.min(w * 0.65, 13);
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.textAlign    = 'center';
+        ctx.fillStyle    = geom.isBlack ? '#fff' : '#111';
+        if (flowDirection === 'down') {
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(fingerHint.finger), x + w / 2, yBottom - 2);
+        } else {
+          ctx.textBaseline = 'top';
+          ctx.fillText(String(fingerHint.finger), x + w / 2, yTop + 2);
         }
       }
 

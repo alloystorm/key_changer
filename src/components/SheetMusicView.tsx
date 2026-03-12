@@ -14,11 +14,11 @@ const NOTE_RY               = 5.5;     // note head vertical radius
 const LEDGER_HALF_W         = 12;      // half-width of a ledger line
 
 // Staff top-line Y positions (measured from canvas top)
-const TREBLE_TOP_LINE_Y     = 60;
-const STAVES_GAP            = 52;      // px between treble bottom and bass top lines
-const TREBLE_BOTTOM_LINE_Y  = TREBLE_TOP_LINE_Y + 4 * LINE_SPACING;   // 116
-const BASS_TOP_LINE_Y       = TREBLE_BOTTOM_LINE_Y + STAVES_GAP;      // 168
-const CANVAS_HEIGHT         = BASS_TOP_LINE_Y + 4 * LINE_SPACING + 70; // 306
+const TREBLE_TOP_LINE_Y     = 100;     // extra headroom for high ledger-line notes
+const STAVES_GAP            = 60;      // px between treble bottom and bass top lines
+const TREBLE_BOTTOM_LINE_Y  = TREBLE_TOP_LINE_Y + 4 * LINE_SPACING;   // 156
+const BASS_TOP_LINE_Y       = TREBLE_BOTTOM_LINE_Y + STAVES_GAP;      // 216
+const CANVAS_HEIGHT         = BASS_TOP_LINE_Y + 4 * LINE_SPACING + 110; // 382
 
 // Pitch helpers
 // Semitone → diatonic step in octave (sharps mapped to natural below: C#→C=0, D#→D=1, …)
