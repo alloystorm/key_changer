@@ -72,9 +72,10 @@ function setFingerPos(fi, noteX, pos) {
   for (let j = 1; j <= 5; j++) pos[j] = noteX + (FREST[j] - fiRest);
 }
 
-function skip(fa, fb, na, nb, lr) {
+function skip(fa, fb, na, nb, lr, relax = false) {
   const xba = nb.x - na.x;
   if (!na.isChord && !nb.isChord) {
+    if (relax) return false;
     if (fa === fb && xba !== 0 && na.duration < 2.0) return true;
     if (fa > 1) {
       if (fb > 1 && (fb - fa) * xba < 0) return true;
@@ -87,6 +88,7 @@ function skip(fa, fb, na, nb, lr) {
     if (fa === fb) return true;
     if (fa < fb && lr === 'left') return true;
     if (fa > fb && lr === 'right') return true;
+    if (relax) return false; // ignore stretch threshold in relax mode
     const th = CHORD_STRETCH[`${Math.min(fa,fb)},${Math.max(fa,fb)}`];
     if (th !== undefined && axba > th) return true;
   }
@@ -115,10 +117,14 @@ function optimizeSeq(pn, istart, lr, pos0, forceDepth9) {
     const t0 = pn[0].time; depth = 4;
     for (let d = 4; d <= 9; d++) { depth = d; if (pn[d-1].time - t0 > 3.5) break; }
   }
+  // Expand depth to ensure it does not cut off the middle of a chord
+  while (depth < 9 && pn[depth-1].isChord && pn[depth-1].chordnr < pn[depth-1].NinChord - 1) {
+    depth++;
+  }
   const choices0 = istart === 0 ? FINGERS : [istart];
   let best = new Array(9).fill(1), minv = 1e10;
   const cand = new Array(9).fill(1);
-  (function bt(level) {
+  function btInner(level, relax) {
     if (level === depth) {
       const v = aveVelocity(cand, pn, depth, pos0);
       if (v < minv) { minv = v; best = cand.slice(); }
@@ -126,10 +132,15 @@ function optimizeSeq(pn, istart, lr, pos0, forceDepth9) {
     }
     const ch = level === 0 ? choices0 : FINGERS;
     for (const f of ch) {
-      if (level > 0 && skip(cand[level-1], f, pn[level-1], pn[level], lr)) continue;
-      cand[level] = f; bt(level + 1);
+      if (level > 0 && skip(cand[level-1], f, pn[level-1], pn[level], lr, relax)) continue;
+      cand[level] = f; btInner(level + 1, relax);
     }
-  })(0);
+  }
+  
+  btInner(0, false);
+  if (minv === 1e10) {
+    btInner(0, true);
+  }
   return [best, minv];
 }
 
@@ -142,15 +153,19 @@ function generate(pnotes, lr) {
   let startF = 0, out = [];
   for (let i = 0; i < N; i++) {
     const win = pnotes.slice(i, i + 9);
-    while (win.length < 9) win.push(win[win.length - 1]);
-    let best;
-    if (i > N - 10 && out.length > 1) {
-      best = out.splice(1, 1)[0]; out[0] = best;
-      startF = out.length > 1 ? out[1] : best;
-    } else {
-      [out] = optimizeSeq(win, startF, lr, pos.slice(), i > N - 11);
-      best = out[0]; startF = out.length > 1 ? out[1] : out[0];
+    let p = 1;
+    while (win.length < 9) {
+      win.push({
+        ...win[win.length - 1],
+        time: win[win.length - 1].time + p++,
+        isChord: false,
+        chordID: 0
+      });
     }
+    let best;
+    [out] = optimizeSeq(win, startF, lr, pos.slice(), i > N - 11);
+    best = out[0];
+    startF = out.length > 1 ? out[1] : out[0];
     setFingerPos(best, pnotes[i].x, pos);
     res.set(`${pnotes[i].pitch}_${pnotes[i].time.toFixed(3)}`, best);
   }
