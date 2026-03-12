@@ -8,7 +8,16 @@ import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
 import { PianoRollView } from './components/PianoRollView';
 import { SheetMusicView } from './components/SheetMusicView';
+import { parseMidi } from './lib/midiParser';
+import { parseMxl } from './lib/mxlParser';
 import './App.css';
+
+const FEATURED_PIECES = [
+  { name: 'Bach: Prelude in C Major', url: './music/bach_prelude_c_major.mid' },
+  { name: 'Beethoven: Moonlight Sonata', url: './music/beethoven_moonlight_1.mid' },
+  { name: 'Chopin: Nocturne Op. 9 No. 2', url: './music/chopin_nocturne_op9_n2.mid' },
+  { name: 'Mozart: Turkish March', url: './music/mozart_turkish_march.mid' },
+];
 
 export default function App() {
   const [song, setSong] = useState<ParsedSong | null>(null);
@@ -97,6 +106,25 @@ export default function App() {
     transposeRef.current = 0;
   }, []);
 
+  const handleLoadUrl = useCallback(async (name: string, url: string) => {
+    setFileLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+      const buffer = await response.arrayBuffer();
+      const isMidi = url.toLowerCase().endsWith('.mid') || url.toLowerCase().endsWith('.midi');
+      const loaded = isMidi
+        ? await parseMidi(buffer, name)
+        : await parseMxl(buffer, name);
+      handleSongLoaded(loaded);
+    } catch (err) {
+      handleFileError((err as Error).message);
+    } finally {
+      setFileLoading(false);
+    }
+  }, [handleSongLoaded, handleFileError]);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -115,6 +143,23 @@ export default function App() {
           <p className="landing-hint">
             Supports <b>.mid</b> / <b>.midi</b> <span className="sep">·</span> <b>.mxl</b> / <b>.musicxml</b>
           </p>
+
+          <div className="featured-pieces">
+            <h3>Try a classic piece:</h3>
+            <div className="featured-grid">
+              {FEATURED_PIECES.map((piece) => (
+                <button
+                  key={piece.url}
+                  className="featured-item"
+                  onClick={() => handleLoadUrl(piece.name, piece.url)}
+                  disabled={fileLoading}
+                >
+                  <span className="featured-icon">🎹</span>
+                  <span className="featured-name">{piece.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </main>
       ) : (
         <main className="app-player">
