@@ -110,6 +110,11 @@ function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' | 'left'
 
   if (!na.isChord && !nb.isChord) {
     if (relax) return false;
+    
+    // Convert arbitrary pianoplayer "quarterLength" duration thresholds 
+    // to their intended approximate temporal duration thresholds (beats).
+    // pianoplayer `duration < 2` meant < half note (usually ~1.0s at 120bpm).
+    // pianoplayer `duration < 4` meant < whole note (usually ~2.0s at 120bpm).
     if (fa === fb && xba !== 0 && na.duration < 2.0) return true;
     if (fa > 1) {
       if (fb > 1 && (fb - fa) * xba < 0) return true;
@@ -139,7 +144,16 @@ function aveVelocity(fingering: number[], pn: PNote[], depth: number, initPos: n
     const fb = fingering[i];
     const dx = Math.abs(pn[i].x - pos[fb]);
     const dt = Math.abs(pn[i].time - pn[i - 1].time) + 0.1;
-    sum += (dx / dt) / WEIGHTS[fb] / (pn[i].isBlack ? BFACTOR[fb] : 1);
+    
+    let v = dx / dt;
+    const weight = WEIGHTS[fb];
+    if (pn[i].isBlack) {
+      v /= weight * BFACTOR[fb];
+    } else {
+      v /= weight;
+    }
+    
+    sum += v;
     setFingerPos(fb, pn[i].x, pos);
   }
   return sum / Math.max(depth - 1, 1);
