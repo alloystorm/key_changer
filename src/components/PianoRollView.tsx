@@ -5,7 +5,7 @@ import './PianoRollView.css';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const SIDEBAR_WIDTH = 36;       // left pitch-label sidebar
-const MIDI_LOW  = 21;           // A0
+const MIDI_LOW = 21;           // A0
 const MIDI_HIGH = 108;          // C8
 const VISIBLE_SECONDS = 4;      // seconds of music visible in the roll at once
 
@@ -74,16 +74,16 @@ function drawDurationSymbol(
   color: string,
   beats: number,
 ): void {
-  const filled  = beats < 2.0;      // whole notes are open, everything else filled
+  const filled = beats < 2.0;      // whole notes are open, everything else filled
   const hasStem = beats < 4.0;
-  const flags   = beats < 0.25 ? 2 : beats < 0.5 ? 1 : 0;
+  const flags = beats < 0.25 ? 2 : beats < 0.5 ? 1 : 0;
   const lw = Math.max(0.8, sz * 0.22);
 
   // Tilted notehead
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.fillStyle   = color;
-  ctx.lineWidth   = lw;
+  ctx.fillStyle = color;
+  ctx.lineWidth = lw;
   ctx.translate(cx, cy);
   ctx.rotate(-0.28);
   ctx.beginPath();
@@ -95,8 +95,8 @@ function drawDurationSymbol(
   if (hasStem) {
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.lineWidth   = lw;
-    const stemX   = cx + sz * 1.0;
+    ctx.lineWidth = lw;
+    const stemX = cx + sz * 1.0;
     const stemTop = cy - sz * 3.0;
     ctx.beginPath();
     ctx.moveTo(stemX, cy - sz * 0.4);
@@ -109,7 +109,7 @@ function drawDurationSymbol(
       ctx.bezierCurveTo(
         stemX + sz * 1.8, fy + sz * 0.5,
         stemX + sz * 1.4, fy + sz * 1.3,
-        stemX,            fy + sz * 2.1,
+        stemX, fy + sz * 2.1,
       );
       ctx.stroke();
     }
@@ -130,10 +130,10 @@ interface Props {
 }
 
 export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fingerHints, onSeek }: Props) {
-  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sizeRef      = useRef({ width: 0, height: 0 });
-  const keyGeomRef   = useRef<Map<number, KeyGeom>>(new Map());
+  const sizeRef = useRef({ width: 0, height: 0 });
+  const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
 
   const { flowDirection, triggerPosition, showFingers } = settings;
 
@@ -146,7 +146,7 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
     const { width, height } = sizeRef.current;
     if (width === 0 || height === 0) return;
 
-    const rollWidth  = width - SIDEBAR_WIDTH;
+    const rollWidth = width - SIDEBAR_WIDTH;
     const rollHeight = height;
 
     // Rebuild key geometry when width changes
@@ -214,10 +214,10 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
       // Visible time range (time at y=0 and y=rollHeight)
       let tAtTop: number, tAtBottom: number;
       if (flowDirection === 'down') {
-        tAtTop    = currentTime + playLineY / pxPerSecond;
+        tAtTop = currentTime + playLineY / pxPerSecond;
         tAtBottom = currentTime - (rollHeight - playLineY) / pxPerSecond;
       } else {
-        tAtTop    = currentTime - playLineY / pxPerSecond;
+        tAtTop = currentTime - playLineY / pxPerSecond;
         tAtBottom = currentTime + (rollHeight - playLineY) / pxPerSecond;
       }
       const tMin = Math.min(tAtTop, tAtBottom) - secondsPerMeasure;
@@ -252,8 +252,8 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
     }
 
     // ── Active key tracking ───────────────────────────────────────────────
-    const activeKeys    = new Set<number>();
-    const activeTracks  = new Map<number, number>();
+    const activeKeys = new Set<number>();
+    const activeTracks = new Map<number, number>();
     const activeHintKey = new Map<number, string>(); // pitch → hint map key for current moment
 
     notes.forEach((note) => {
@@ -272,16 +272,16 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
       if (!geom || geom.isBlack !== blackPass) return;
 
       const secFromNow = note.startTime - currentTime;
-      const secEnd     = (note.startTime + note.duration) - currentTime;
+      const secEnd = (note.startTime + note.duration) - currentTime;
 
       let yTop: number, yBottom: number;
       if (flowDirection === 'down') {
-        yTop    = playLineY - secEnd     * pxPerSecond;
+        yTop = playLineY - secEnd * pxPerSecond;
         yBottom = playLineY - secFromNow * pxPerSecond;
       } else {
         const a = playLineY + secFromNow * pxPerSecond;
-        const b = playLineY + secEnd     * pxPerSecond;
-        yTop    = Math.min(a, b);
+        const b = playLineY + secEnd * pxPerSecond;
+        yTop = Math.min(a, b);
         yBottom = Math.max(a, b);
       }
 
@@ -294,7 +294,7 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
 
       const isPast = flowDirection === 'down' ? yBottom < playLineY : yTop > playLineY;
       ctx.globalAlpha = isPast ? 0.4 : 1.0;
-      ctx.fillStyle   = geom.isBlack ? shadeColor(color, -35) : color;
+      ctx.fillStyle = geom.isBlack ? shadeColor(color, -35) : color;
 
       const radius = Math.min(w / 2, 4);
       ctx.beginPath();
@@ -304,14 +304,14 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
       // Leading-edge bright cap for active notes
       const isActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
       if (isActive) {
-        ctx.fillStyle   = '#fff';
+        ctx.fillStyle = '#fff';
         ctx.globalAlpha = 0.75;
         const capY = flowDirection === 'down' ? yTop : yBottom - 2;
         ctx.fillRect(x, capY, w, 2);
       }
 
       // Pre-compute finger hint so we can give it priority over the duration symbol
-      const fingerKey  = `${pitch}_${note.startTime.toFixed(3)}`;
+      const fingerKey = `${pitch}_${note.startTime.toFixed(3)}`;
       const fingerHint = showFingers ? fingerHints.get(fingerKey) : undefined;
 
       // Duration symbol — omitted when a finger hint will be shown (finger wins)
@@ -330,8 +330,8 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
         ctx.globalAlpha = 1;
         const fontSize = Math.min(w * 0.65, 13);
         ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.textAlign    = 'center';
-        ctx.fillStyle    = geom.isBlack ? '#fff' : '#111';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = geom.isBlack ? '#fff' : '#111';
         if (flowDirection === 'down') {
           ctx.textBaseline = 'bottom';
           ctx.fillText(String(fingerHint.finger), x + w / 2, yBottom - 2);
@@ -367,7 +367,7 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
         keyGeomRef.current = new Map(); // force geometry rebuild
         const canvas = canvasRef.current;
         if (canvas) {
-          canvas.width  = Math.round(width);
+          canvas.width = Math.round(width);
           canvas.height = Math.round(height);
         }
         draw();
@@ -380,30 +380,32 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
   useEffect(() => { draw(); }, [draw]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="piano-roll-view"
       onMouseDown={(e) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const dragStartY = e.clientY - rect.top;
+        const initialTime = currentTime;
+
         const { height } = sizeRef.current;
         const rollHeight = height;
         const frac = triggerFrac(triggerPosition);
         const playLineY = flowDirection === 'down'
           ? rollHeight * frac
           : rollHeight * (1 - frac);
-
         const travelPx = flowDirection === 'down' ? playLineY : rollHeight - playLineY;
         const pxPerSecond = travelPx / VISIBLE_SECONDS;
 
         const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (!rect) return;
           const mouseY = moveEvent.clientY - rect.top;
-          
+
           let targetTime: number;
           if (flowDirection === 'down') {
-            targetTime = currentTime + (playLineY - mouseY) / pxPerSecond;
+            targetTime = initialTime + (mouseY - dragStartY) / pxPerSecond;
           } else {
-            targetTime = currentTime + (mouseY - playLineY) / pxPerSecond;
+            targetTime = initialTime - (mouseY - dragStartY) / pxPerSecond;
           }
           onSeek(targetTime);
         };
