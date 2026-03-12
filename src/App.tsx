@@ -30,6 +30,7 @@ export default function App() {
   const [transpose, setTranspose] = useState(0);
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>('idle');
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
   const [rollSettings, setRollSettings] = useState<RollSettings>({
     flowDirection: 'down',
@@ -112,6 +113,12 @@ export default function App() {
     },
     []
   );
+
+  const handlePlaybackRateChange = useCallback((rate: number) => {
+    const next = Math.max(0.1, Math.min(4.0, rate));
+    setPlaybackRate(next);
+    player.setPlaybackRate(next);
+  }, []);
 
   const handleChangeFile = useCallback(() => {
     player.stop();
@@ -241,11 +248,13 @@ export default function App() {
             currentTime={currentTime}
             totalDuration={song.totalDuration}
             bpm={song.bpm}
+            playbackRate={playbackRate}
             viewMode={viewMode}
             onPlay={handlePlay}
             onPause={handlePause}
             onStop={handleStop}
             onTransposeChange={handleTransposeChange}
+            onPlaybackRateChange={handlePlaybackRateChange}
             onSeek={handleSeek}
             onViewModeChange={setViewMode}
             onChangeFile={handleChangeFile}
@@ -260,6 +269,7 @@ export default function App() {
                   transpose={transpose}
                   currentTime={currentTime}
                   isPlaying={playerStatus === 'playing'}
+                  onSeek={handleSeek}
                 />
               </div>
             )}
@@ -274,6 +284,7 @@ export default function App() {
                   bpm={song.bpm}
                   settings={rollSettings}
                   fingerHints={fingerHints}
+                  onSeek={handleSeek}
                 />
               </div>
             )}
@@ -287,6 +298,7 @@ export default function App() {
                     transpose={transpose}
                     currentTime={currentTime}
                     isPlaying={playerStatus === 'playing'}
+                    onSeek={handleSeek}
                   />
                 </div>
                 <div className="view-layer view-layer--roll">
@@ -298,6 +310,7 @@ export default function App() {
                     bpm={song.bpm}
                     settings={rollSettings}
                     fingerHints={fingerHints}
+                    onSeek={handleSeek}
                   />
                 </div>
               </>

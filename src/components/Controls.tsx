@@ -23,11 +23,13 @@ interface Props {
   currentTime: number;
   totalDuration: number;
   bpm: number;
+  playbackRate: number;
   viewMode: ViewMode;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
   onTransposeChange: (delta: number) => void;
+  onPlaybackRateChange: (rate: number) => void;
   onSeek: (t: number) => void;
   onViewModeChange: (mode: ViewMode) => void;
   onChangeFile: () => void;
@@ -39,11 +41,13 @@ export function Controls({
   currentTime,
   totalDuration,
   bpm,
+  playbackRate,
   viewMode,
   onPlay,
   onPause,
   onStop,
   onTransposeChange,
+  onPlaybackRateChange,
   onSeek,
   onViewModeChange,
   onChangeFile,
@@ -118,11 +122,30 @@ export function Controls({
             ♯
           </button>
         </div>
-
-        {/* BPM */}
-        <div className="bpm-display">
-          <span className="bpm-value">{Math.round(bpm)}</span>
-          <span className="bpm-unit">BPM</span>
+{/* BPM / Speed Control */}
+        <div 
+          className="bpm-display"
+          title="Drag up/down to change speed, double-click to reset"
+          onMouseDown={(e) => {
+            const startY = e.clientY;
+            const startRate = playbackRate;
+            const onMouseMove = (moveEvent: MouseEvent) => {
+              const deltaY = startY - moveEvent.clientY;
+              const newRate = startRate + (deltaY / 100);
+              onPlaybackRateChange(newRate);
+            };
+            const onMouseUp = () => {
+              window.removeEventListener('mousemove', onMouseMove);
+              window.removeEventListener('mouseup', onMouseUp);
+            };
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+          }}
+          onDoubleClick={() => onPlaybackRateChange(1.0)}
+          style={{ cursor: 'ns-resize', userSelect: 'none' }}
+        >
+          <span className="bpm-value">{Math.round(bpm * playbackRate)}</span>
+          <span className="bpm-unit">{playbackRate === 1 ? 'BPM' : `${Math.round(playbackRate * 100)}%`}</span>
         </div>
       </div>
     </div>

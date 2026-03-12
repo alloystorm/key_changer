@@ -77,9 +77,10 @@ interface Props {
   transpose: number;
   currentTime: number;
   isPlaying: boolean;
+  onSeek: (t: number) => void;
 }
 
-export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
+export function SheetMusicView({ notes, bpm, transpose, currentTime, onSeek }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef   = useRef<number>(0);
   const propsRef  = useRef({ notes, bpm, transpose, currentTime });
@@ -297,7 +298,40 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
   }, [draw]);
 
   return (
-    <div className="sheet-music-view">
+    <div 
+      className="sheet-music-view"
+      onMouseDown={(e) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const H = canvas.height;
+        const naturalHeight = 300;
+        let scale = H / naturalHeight;
+        scale = Math.max(0.4, Math.min(2.0, scale));
+        
+        const pxPerSec = 160 * scale;
+        const playLineX = CLEF_AREA_WIDTH + (50 * scale);
+
+        const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
+          const rect = canvas.getBoundingClientRect();
+          const mouseX = moveEvent.clientX - rect.left;
+          const targetTime = currentTime + (mouseX - playLineX) / pxPerSec;
+          onSeek(targetTime);
+        };
+
+        const handleMouseUp = () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        // Initial seek on click
+        handleMouseMove(e as unknown as MouseEvent);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+      }}
+      style={{ cursor: 'crosshair' }}
+    >
       <canvas ref={canvasRef} className="sheet-canvas" />
     </div>
   );

@@ -126,9 +126,10 @@ interface Props {
   bpm: number;
   settings: RollSettings;
   fingerHints: Map<string, FingerHint>;
+  onSeek: (t: number) => void;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fingerHints }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fingerHints, onSeek }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef      = useRef({ width: 0, height: 0 });
@@ -379,7 +380,47 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
   useEffect(() => { draw(); }, [draw]);
 
   return (
-    <div ref={containerRef} className="piano-roll-view">
+    <div 
+      ref={containerRef} 
+      className="piano-roll-view"
+      onMouseDown={(e) => {
+        const { height } = sizeRef.current;
+        const rollHeight = height;
+        const frac = triggerFrac(triggerPosition);
+        const playLineY = flowDirection === 'down'
+          ? rollHeight * frac
+          : rollHeight * (1 - frac);
+
+        const travelPx = flowDirection === 'down' ? playLineY : rollHeight - playLineY;
+        const pxPerSecond = travelPx / VISIBLE_SECONDS;
+
+        const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const mouseY = moveEvent.clientY - rect.top;
+          
+          let targetTime: number;
+          if (flowDirection === 'down') {
+            targetTime = currentTime + (playLineY - mouseY) / pxPerSecond;
+          } else {
+            targetTime = currentTime + (mouseY - playLineY) / pxPerSecond;
+          }
+          onSeek(targetTime);
+        };
+
+        const handleMouseUp = () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        // Call once for the initial click
+        handleMouseMove(e as unknown as MouseEvent);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+      }}
+      style={{ cursor: 'crosshair' }}
+    >
       <canvas ref={canvasRef} className="piano-roll-canvas" />
     </div>
   );

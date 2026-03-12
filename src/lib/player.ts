@@ -46,6 +46,7 @@ export class Player {
   private notes: NoteEvent[] = [];
   private transpose = 0;
   private bpm = 120;
+  private playbackRate = 1.0;
 
   private startedAt = 0; // AudioContext.currentTime when play started
   private pausedAt = 0; // position in song (seconds) when paused
@@ -127,7 +128,7 @@ export class Player {
       const buf = this.buffers.get(pitch);
       if (!buf || note.startTime < offset - 0.1) return;
 
-      const when = now + (note.startTime - offset);
+      const when = now + (note.startTime - offset) / this.playbackRate;
       if (when < now - 0.01) return;
 
       const src = this.audioCtx!.createBufferSource();
@@ -137,7 +138,7 @@ export class Player {
       src.connect(gain);
       gain.connect(this.gainNode!);
       src.start(Math.max(when, now + LOOKAHEAD));
-      src.stop(Math.max(when, now) + note.duration + 0.3);
+      src.stop(Math.max(when, now) + note.duration / this.playbackRate + 0.3);
       this.scheduledSources.push(src);
     });
 
@@ -147,7 +148,7 @@ export class Player {
 
   pause(): void {
     if (!this.audioCtx || this.status !== 'playing') return;
-    this.pausedAt = this.audioCtx.currentTime - this.startedAt;
+    this.pausedAt = this.getCurrentTime();
     this.clearScheduled();
     this.stopRaf();
     this.setStatus('paused');
@@ -167,8 +168,27 @@ export class Player {
     const wasPlaying = this.status === 'playing';
     if (wasPlaying) this.clearScheduled();
     this.pausedAt = time;
-    if (wasPlaying) this.play();
-    else this.onTimeUpdate(time);
+    if (wasPlaying) {
+      if (this.audioCtx) {
+        this.startedAt = this.audioCtx.currentTime - time / this.playbackRate;
+      }
+      this.play();
+    } else {
+      this.onTimeUpdate(time);
+    }
+  }
+
+  setPlaybackRate(rate: number): void {
+    const wasPlaying = this.status === 'playing';
+    const currentTime = this.getCurrentTime();
+    
+    this.playbackRate = rate;
+    
+    if (wasPlaying) {
+      this.clearScheduled();
+      this.pausedAt = currentTime;
+      this.play();
+    }
   }
 
   /** Call when transpose changes — reload buffers for new pitches then reschedule */
@@ -194,7 +214,7 @@ export class Player {
 
   getCurrentTime(): number {
     if (this.status === 'playing' && this.audioCtx) {
-      return this.audioCtx.currentTime - this.startedAt;
+      return (this.audioCtx.currentTime - this.startedAt) * this.playbackRate;
     }
     return this.pausedAt;
   }
