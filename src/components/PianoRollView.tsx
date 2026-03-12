@@ -5,7 +5,6 @@ import './PianoRollView.css';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 const SIDEBAR_WIDTH = 36;       // left pitch-label sidebar
-const KEYBOARD_HEIGHT = 120;    // height of the piano keyboard strip
 const MIDI_LOW  = 21;           // A0
 const MIDI_HIGH = 108;          // C8
 const VISIBLE_SECONDS = 4;      // seconds of music visible in the roll at once
@@ -147,7 +146,7 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
     if (width === 0 || height === 0) return;
 
     const rollWidth  = width - SIDEBAR_WIDTH;
-    const rollHeight = height - KEYBOARD_HEIGHT;
+    const rollHeight = height;
 
     // Rebuild key geometry when width changes
     const existingWkW = keyGeomRef.current.size > 0
@@ -347,76 +346,12 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
     notes.forEach((n) => drawNote(n, false));
     notes.forEach((n) => drawNote(n, true));
 
-    // ── Keyboard ──────────────────────────────────────────────────────────
-    const kbTop = rollHeight;
-    const wkH   = KEYBOARD_HEIGHT - 1;
-    const bkH   = KEYBOARD_HEIGHT * 0.58;
+    // ── Note drawing ends ────────────────────────────────────────────────
 
-    // White keys
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
-      if (isBlack(midi)) continue;
-      const geom = keyGeom.get(midi)!;
-      const active = activeKeys.has(midi);
-      const trackIdx = activeTracks.get(midi) ?? 0;
-
-      ctx.fillStyle  = active ? NOTE_COLORS[trackIdx % NOTE_COLORS.length] : '#f0f0f0';
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth  = 0.5;
-      ctx.fillRect  (SIDEBAR_WIDTH + geom.x, kbTop, geom.w, wkH);
-      ctx.strokeRect(SIDEBAR_WIDTH + geom.x, kbTop, geom.w, wkH);
-
-      // C label
-      if (midi % 12 === 0) {
-        ctx.fillStyle    = active ? 'rgba(0,0,0,0.5)' : '#999';
-        ctx.font         = '8px sans-serif';
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`C${Math.floor(midi / 12) - 1}`, SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH - 2);
-      }
-
-      // Finger on key
-      if (showFingers && active) {
-        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
-        if (hint) {
-          ctx.fillStyle    = '#111';
-          ctx.font         = `bold ${Math.min(geom.w * 0.6, 12)}px sans-serif`;
-          ctx.textAlign    = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + wkH * 0.38);
-        }
-      }
-    }
-
-    // Black keys (on top)
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
-      if (!isBlack(midi)) continue;
-      const geom = keyGeom.get(midi);
-      if (!geom) continue;
-      const active   = activeKeys.has(midi);
-      const trackIdx = activeTracks.get(midi) ?? 0;
-
-      ctx.fillStyle  = active ? shadeColor(NOTE_COLORS[trackIdx % NOTE_COLORS.length], -20) : '#1a1a1a';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth  = 0.5;
-      ctx.fillRect  (SIDEBAR_WIDTH + geom.x, kbTop, geom.w, bkH);
-      ctx.strokeRect(SIDEBAR_WIDTH + geom.x, kbTop, geom.w, bkH);
-
-      if (showFingers && active && geom.w >= 8) {
-        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
-        if (hint) {
-          ctx.fillStyle    = '#fff';
-          ctx.font         = `bold ${Math.min(geom.w * 0.7, 11)}px sans-serif`;
-          ctx.textAlign    = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, kbTop + bkH * 0.38);
-        }
-      }
-    }
 
     // ── Sidebar ───────────────────────────────────────────────────────────
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
-    ctx.fillRect(0, rollHeight, SIDEBAR_WIDTH, KEYBOARD_HEIGHT);
 
   }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, fingerHints]);
 

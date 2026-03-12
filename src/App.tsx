@@ -11,6 +11,7 @@ import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
 import { PianoRollView } from './components/PianoRollView';
 import { SheetMusicView } from './components/SheetMusicView';
+import { PianoKeyboardView } from './components/PianoKeyboardView';
 import { SongLibrary } from './components/SongLibrary';
 import './App.css';
 
@@ -250,17 +251,9 @@ export default function App() {
             onChangeFile={handleChangeFile}
           />
 
-          <div className={`view-area${viewMode === 'both' ? ' view-area--split' : ''}`}>
-            {viewMode === 'sheet' ? (
-              <SheetMusicView
-                notes={song.notes}
-                bpm={song.bpm}
-                transpose={transpose}
-                currentTime={currentTime}
-                isPlaying={playerStatus === 'playing'}
-              />
-            ) : viewMode === 'both' ? (
-              <>
+          <div className={`view-area view-area--${viewMode}`}>
+            {viewMode === 'sheet' && (
+              <div className="view-layer view-layer--sheet">
                 <SheetMusicView
                   notes={song.notes}
                   bpm={song.bpm}
@@ -268,6 +261,11 @@ export default function App() {
                   currentTime={currentTime}
                   isPlaying={playerStatus === 'playing'}
                 />
+              </div>
+            )}
+            
+            {viewMode === 'pianoroll' && (
+              <div className="view-layer view-layer--roll">
                 <PianoRollView
                   notes={song.notes}
                   transpose={transpose}
@@ -277,18 +275,43 @@ export default function App() {
                   settings={rollSettings}
                   fingerHints={fingerHints}
                 />
+              </div>
+            )}
+
+            {viewMode === 'both' && (
+              <>
+                <div className="view-layer view-layer--sheet">
+                  <SheetMusicView
+                    notes={song.notes}
+                    bpm={song.bpm}
+                    transpose={transpose}
+                    currentTime={currentTime}
+                    isPlaying={playerStatus === 'playing'}
+                  />
+                </div>
+                <div className="view-layer view-layer--roll">
+                  <PianoRollView
+                    notes={song.notes}
+                    transpose={transpose}
+                    currentTime={currentTime}
+                    totalDuration={song.totalDuration}
+                    bpm={song.bpm}
+                    settings={rollSettings}
+                    fingerHints={fingerHints}
+                  />
+                </div>
               </>
-            ) : (
-              <PianoRollView
+            )}
+
+            <div className="view-layer view-layer--keyboard">
+              <PianoKeyboardView
                 notes={song.notes}
                 transpose={transpose}
                 currentTime={currentTime}
-                totalDuration={song.totalDuration}
-                bpm={song.bpm}
-                settings={rollSettings}
+                showFingers={rollSettings.showFingers}
                 fingerHints={fingerHints}
               />
-            )}
+            </div>
           </div>
         </main>
       )}

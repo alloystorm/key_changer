@@ -16,12 +16,10 @@ const STEM_LENGTH           = 7 * HALF_SPACE; // standard stem = 3.5 staff space
 const STEM_LW               = 1.5;            // stem stroke width
 const FLAG_LW               = 1.5;            // flag stroke width
 
-// Staff top-line Y positions (measured from canvas top)
-const TREBLE_TOP_LINE_Y     = 100;     // extra headroom for high ledger-line notes
-const STAVES_GAP            = 60;      // px between treble bottom and bass top lines
-const TREBLE_BOTTOM_LINE_Y  = TREBLE_TOP_LINE_Y + 4 * LINE_SPACING;   // 156
-const BASS_TOP_LINE_Y       = TREBLE_BOTTOM_LINE_Y + STAVES_GAP;      // 216
-const CANVAS_HEIGHT         = BASS_TOP_LINE_Y + 4 * LINE_SPACING + 110; // 382
+// Staves geometry constants (will be multiplied by a scale factor)
+const BASE_TREBLE_TOP_LINE_Y = 100;
+const BASE_STAVES_GAP        = 60;
+const BASE_CANVAS_HEIGHT     = 382; // Height on which constants are based
 
 // Pitch helpers
 // Semitone → diatonic step in octave (sharps mapped to natural below: C#→C=0, D#→D=1, …)
@@ -83,12 +81,8 @@ function getNoteInfo(pitch: number): NoteInfo {
   return { stave, slot, isSharp: BLACK_KEYS.has(pitch % 12) };
 }
 
-/** Pixel Y for a given stave + diatonic slot */
-function slotY(stave: 'treble' | 'bass', slot: number): number {
-  const topY = stave === 'treble' ? TREBLE_TOP_LINE_Y : BASS_TOP_LINE_Y;
-  // slot 8 → topY (top line), slot 0 → topY + 4*LINE_SPACING (bottom line)
-  return topY + (8 - slot) * HALF_SPACE;
-}
+// ─── Component ────────────────────────────────────────────────────────────────
+
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -108,19 +102,20 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
 
   useEffect(() => {
     propsRef.current = { notes, bpm, transpose, currentTime };
-  });
+  }, [notes, bpm, transpose, currentTime]);
 
   // ── Canvas resize ────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ro = new ResizeObserver(() => {
-      canvas.width  = canvas.offsetWidth  || 800;
-      canvas.height = CANVAS_HEIGHT;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        canvas.width  = Math.round(width);
+        canvas.height = Math.round(height);
+      }
     });
     ro.observe(canvas);
-    canvas.width  = canvas.offsetWidth  || 800;
-    canvas.height = CANVAS_HEIGHT;
     return () => ro.disconnect();
   }, []);
 
@@ -133,36 +128,55 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
 
     const { notes: n, bpm: songBpm, transpose: tp, currentTime: ct } = propsRef.current;
     const W          = canvas.width;
+    const H          = canvas.height;
+    
+    // Calculate scale factor based on container height
+    const scale      = H / BASE_CANVAS_HEIGHT;
+    
     const playLineX  = W * PLAY_LINE_X_RATIO;
     const pxPerSec   = W / VISIBLE_SECONDS;
 
+    // Responsive staff positions
+    const trebleTopLineY = BASE_TREBLE_TOP_LINE_Y * scale;
+    const stavesGap      = BASE_STAVES_GAP * scale;
+    const lineSpacing    = LINE_SPACING * scale;
+    const halfSpace      = HALF_SPACE * scale;
+    
+    const trebleBottomLineY = trebleTopLineY + 4 * lineSpacing;
+    const bassTopLineY      = trebleBottomLineY + stavesGap;
+
+    const slotToY = (stave: 'treble' | 'bass', slot: number) => {
+      const topY = stave === 'treble' ? trebleTopLineY : bassTopLineY;
+      return topY + (8 - slot) * halfSpace;
+    };
+
     // ── Background ──────────────────────────────────────────────────────
     ctx.fillStyle = BG_COLOR;
-    ctx.fillRect(0, 0, W, CANVAS_HEIGHT);
+    ctx.fillRect(0, 0, W, H);
 
     // ── Staff lines (treble + bass, drawn from clef area to right edge) ──
     ctx.strokeStyle = STAFF_COLOR;
-    ctx.lineWidth   = 1;
+    ctx.lineWidth   = Math.max(1, scale);
     for (let i = 0; i < 5; i++) {
-      const ty = Math.round(TREBLE_TOP_LINE_Y + i * LINE_SPACING) + 0.5;
-      const by = Math.round(BASS_TOP_LINE_Y   + i * LINE_SPACING) + 0.5;
+      const ty = Math.round(trebleTopLineY + i * lineSpacing) + 0.5;
+      const by = Math.round(bassTopLineY   + i * lineSpacing) + 0.5;
       ctx.beginPath(); ctx.moveTo(CLEF_AREA_WIDTH, ty); ctx.lineTo(W, ty); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(CLEF_AREA_WIDTH, by); ctx.lineTo(W, by); ctx.stroke();
     }
-    // Vertical barline connecting both staves at left edge of staff area
+    // Vertical barline
     ctx.beginPath();
-    ctx.moveTo(CLEF_AREA_WIDTH + 0.5, TREBLE_TOP_LINE_Y);
-    ctx.lineTo(CLEF_AREA_WIDTH + 0.5, BASS_TOP_LINE_Y + 4 * LINE_SPACING);
+    ctx.moveTo(CLEF_AREA_WIDTH + 0.5, trebleTopLineY);
+    ctx.lineTo(CLEF_AREA_WIDTH + 0.5, bassTopLineY + 4 * lineSpacing);
     ctx.stroke();
 
     // ── Play line ────────────────────────────────────────────────────────
     ctx.save();
-    ctx.setLineDash([6, 4]);
+    ctx.setLineDash([6 * scale, 4 * scale]);
     ctx.strokeStyle = PLAYLINE_COLOR;
-    ctx.lineWidth   = 1.5;
+    ctx.lineWidth   = 1.5 * scale;
     ctx.beginPath();
-    ctx.moveTo(playLineX, TREBLE_TOP_LINE_Y - 38);
-    ctx.lineTo(playLineX, BASS_TOP_LINE_Y + 4 * LINE_SPACING + 38);
+    ctx.moveTo(playLineX, trebleTopLineY - 38 * scale);
+    ctx.lineTo(playLineX, bassTopLineY + 4 * lineSpacing + 38 * scale);
     ctx.stroke();
     ctx.restore();
 
@@ -176,30 +190,30 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
       if (x < CLEF_AREA_WIDTH - NOTE_RX - 20 || x > W + NOTE_RX + 20) continue;
 
       const { stave, slot, isSharp } = getNoteInfo(pitch);
-      const y        = slotY(stave, slot);
+      const y        = slotToY(stave, slot);
       const color    = NOTE_COLORS[note.track % NOTE_COLORS.length];
       const isActive = note.startTime <= ct && ct < note.startTime + note.duration;
 
       // ── Ledger lines ────────────────────────────────────────────────
       ctx.strokeStyle = LEDGER_COLOR;
-      ctx.lineWidth   = 1;
+      ctx.lineWidth   = Math.max(1, scale);
+      const ledgerH   = LEDGER_HALF_W * scale;
       if (slot <= -2) {
-        // Draw from -2 down to the deepest even slot at or above the note
         const lowest = slot % 2 === 0 ? slot : slot - 1;
         for (let s = -2; s >= lowest; s -= 2) {
-          const ly = slotY(stave, s);
+          const ly = slotToY(stave, s);
           ctx.beginPath();
-          ctx.moveTo(x - LEDGER_HALF_W, ly);
-          ctx.lineTo(x + LEDGER_HALF_W, ly);
+          ctx.moveTo(x - ledgerH, ly);
+          ctx.lineTo(x + ledgerH, ly);
           ctx.stroke();
         }
       } else if (slot >= 10) {
         const highest = slot % 2 === 0 ? slot : slot + 1;
         for (let s = 10; s <= highest; s += 2) {
-          const ly = slotY(stave, s);
+          const ly = slotToY(stave, s);
           ctx.beginPath();
-          ctx.moveTo(x - LEDGER_HALF_W, ly);
-          ctx.lineTo(x + LEDGER_HALF_W, ly);
+          ctx.moveTo(x - ledgerH, ly);
+          ctx.lineTo(x + ledgerH, ly);
           ctx.stroke();
         }
       }
@@ -207,10 +221,10 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
       // ── Accidental ──────────────────────────────────────────────────
       if (isSharp) {
         ctx.fillStyle    = isActive ? ACCY_ACTIVE : ACCY_COLOR;
-        ctx.font         = 'bold 11px sans-serif';
+        ctx.font         = `bold ${11 * scale}px sans-serif`;
         ctx.textAlign    = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText('#', x - NOTE_RX - 2, y);
+        ctx.fillText('#', x - NOTE_RX * scale - 2 * scale, y);
       }
 
       // ── Duration ────────────────────────────────────────────────────
@@ -218,43 +232,47 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
       const filled   = beats < 2.0;       // half & whole = open/hollow
       const hasStem  = beats < 4.0;       // whole notes have no stem
       const numFlags = beats <= 0.125 ? 3 : beats <= 0.25 ? 2 : beats <= 0.5 ? 1 : 0;
-      // Stem points up when note is at or below the staff middle (slot 4 = B4/D3)
+      
+      const stemLength = STEM_LENGTH * scale;
+      const noteRx     = NOTE_RX * scale;
+      const noteRy     = NOTE_RY * scale;
+
       const stemUp   = slot <= 4;
-      const stemX    = stemUp ? x + NOTE_RX * 0.85 : x - NOTE_RX * 0.85;
-      const stemFree = stemUp ? y - STEM_LENGTH : y + STEM_LENGTH;
+      const stemX    = stemUp ? x + noteRx * 0.85 : x - noteRx * 0.85;
+      const stemFree = stemUp ? y - stemLength : y + stemLength;
 
       // ── Stem ────────────────────────────────────────────────────────
       if (hasStem) {
         ctx.save();
         ctx.strokeStyle = isActive ? 'rgba(255,255,255,0.75)' : color;
-        ctx.lineWidth   = STEM_LW;
+        ctx.lineWidth   = STEM_LW * scale;
         ctx.beginPath();
-        ctx.moveTo(stemX, stemUp ? y - NOTE_RY * 0.5 : y + NOTE_RY * 0.5);
+        ctx.moveTo(stemX, stemUp ? y - noteRy * 0.5 : y + noteRy * 0.5);
         ctx.lineTo(stemX, stemFree);
         ctx.stroke();
 
         // ── Flags ──────────────────────────────────────────────────────
-        ctx.lineWidth = FLAG_LW;
+        ctx.lineWidth = FLAG_LW * scale;
         for (let f = 0; f < numFlags; f++) {
           const fy = stemUp
-            ? stemFree + f * HALF_SPACE * 1.8
-            : stemFree - f * HALF_SPACE * 1.8;
+            ? stemFree + f * halfSpace * 1.8
+            : stemFree - f * halfSpace * 1.8;
           ctx.beginPath();
           if (stemUp) {
             // flag curves right-downward from stem tip
             ctx.moveTo(stemX, fy);
             ctx.bezierCurveTo(
-              stemX + NOTE_RX * 2.2, fy + HALF_SPACE * 1.2,
-              stemX + NOTE_RX * 1.8, fy + HALF_SPACE * 2.8,
-              stemX,                 fy + HALF_SPACE * 3.6,
+              stemX + noteRx * 2.2, fy + halfSpace * 1.2,
+              stemX + noteRx * 1.8, fy + halfSpace * 2.8,
+              stemX,                 fy + halfSpace * 3.6,
             );
           } else {
             // flag curves right-upward from stem tip
             ctx.moveTo(stemX, fy);
             ctx.bezierCurveTo(
-              stemX + NOTE_RX * 2.2, fy - HALF_SPACE * 1.2,
-              stemX + NOTE_RX * 1.8, fy - HALF_SPACE * 2.8,
-              stemX,                 fy - HALF_SPACE * 3.6,
+              stemX + noteRx * 2.2, fy - halfSpace * 1.2,
+              stemX + noteRx * 1.8, fy - halfSpace * 2.8,
+              stemX,                 fy - halfSpace * 3.6,
             );
           }
           ctx.stroke();
@@ -272,9 +290,9 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
       }
       ctx.strokeStyle = noteColor;
       ctx.fillStyle   = noteColor;
-      ctx.lineWidth   = 1.5;
+      ctx.lineWidth   = 1.5 * scale;
       ctx.beginPath();
-      ctx.ellipse(x, y, NOTE_RX, NOTE_RY, -0.35, 0, Math.PI * 2);
+      ctx.ellipse(x, y, noteRx, noteRy, -0.35, 0, Math.PI * 2);
       if (filled) {
         ctx.fill();
       } else {
@@ -289,14 +307,14 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
 
     // ── Clef overlay — mask notes that scroll behind the clef area ───────
     ctx.fillStyle = BG_COLOR;
-    ctx.fillRect(0, 0, CLEF_AREA_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(0, 0, CLEF_AREA_WIDTH, H);
 
     // Redraw staff line stubs inside clef area
     ctx.strokeStyle = STAFF_COLOR;
-    ctx.lineWidth   = 1;
+    ctx.lineWidth   = Math.max(1, scale);
     for (let i = 0; i < 5; i++) {
-      const ty = Math.round(TREBLE_TOP_LINE_Y + i * LINE_SPACING) + 0.5;
-      const by = Math.round(BASS_TOP_LINE_Y   + i * LINE_SPACING) + 0.5;
+      const ty = Math.round(trebleTopLineY + i * lineSpacing) + 0.5;
+      const by = Math.round(bassTopLineY   + i * lineSpacing) + 0.5;
       ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(CLEF_AREA_WIDTH, ty); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, by); ctx.lineTo(CLEF_AREA_WIDTH, by); ctx.stroke();
     }
@@ -306,14 +324,14 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
     ctx.textAlign    = 'center';
 
     // Treble clef 𝄞 — baseline near treble bottom line
-    ctx.font         = '60px serif';
+    ctx.font         = `${60 * scale}px serif`;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('\uD834\uDD1E', CLEF_AREA_WIDTH / 2, TREBLE_BOTTOM_LINE_Y + 8);
+    ctx.fillText('\uD834\uDD1E', CLEF_AREA_WIDTH / 2, trebleBottomLineY + 8 * scale);
 
     // Bass clef 𝄢 — aligned to F3 line (4th line from bottom = slot 6)
-    ctx.font         = '36px serif';
+    ctx.font         = `${36 * scale}px serif`;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('\uD834\uDD22', CLEF_AREA_WIDTH / 2, slotY('bass', 6) + 4);
+    ctx.fillText('\uD834\uDD22', CLEF_AREA_WIDTH / 2, slotToY('bass', 6) + 4 * scale);
 
     animRef.current = requestAnimationFrame(draw);
   }, []);
