@@ -26,7 +26,7 @@ export interface FingerHint {
 // Physical geometry
 const BLACK_MIDI = new Set([1, 3, 6, 8, 10]);
 const isBlack = (p: number) => BLACK_MIDI.has(p % 12);
-const clamp   = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi : v;
+const clamp = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi : v;
 
 // White-key fractional index per semitone (C=0 … B=6).
 // Black keys sit at +0.5 between their white neighbours.
@@ -42,9 +42,9 @@ function keyposMidi(pitch: number): number {
 
 // Hand constants - "M" size, hf = 0.82 (from pianoplayer/hand.py)
 const HF = 0.82;
-const FREST   = [0, -7.0 * HF, -2.8 * HF, 0.0,  2.8 * HF, 5.6 * HF];
-const WEIGHTS = [0,  1.1,       1.0,       1.1,  0.9,      0.8      ];
-const BFACTOR = [0,  0.3,       1.0,       1.1,  0.8,      0.7      ];
+const FREST = [0, -7.0 * HF, -2.8 * HF, 0.0, 2.8 * HF, 5.6 * HF];
+const WEIGHTS = [0, 1.1, 1.0, 1.1, 0.9, 0.8];
+const BFACTOR = [0, 0.3, 1.0, 1.1, 0.8, 0.7];
 const FINGERS = [1, 2, 3, 4, 5] as const;
 
 const CHORD_STRETCH: Record<string, number> = {
@@ -85,7 +85,7 @@ function buildPNotes(evts: NoteEvent[], transpose: number): PNote[] {
   let i = 0;
   while (i < pn.length) {
     let j = i + 1;
-    while (j < pn.length && pn[j].time - pn[j - 1].time < 0.050) j++;
+    while (j < pn.length && pn[j].time - pn[j - 1].time < 0.150) j++;
     if (j > i + 1) {
       for (let k = i; k < j; k++) {
         pn[k].isChord = true; pn[k].chordID = cid;
@@ -110,13 +110,13 @@ function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' | 'left'
 
   if (!na.isChord && !nb.isChord) {
     if (relax) return false;
-    
+
     // Convert arbitrary pianoplayer "quarterLength" duration thresholds 
     // to their intended approximate temporal duration thresholds (beats).
     // pianoplayer `duration < 2` meant < half note (usually ~1.0s at 120bpm).
     // pianoplayer `duration < 4` meant < whole note (usually ~2.0s at 120bpm).
     if (fa === fb && xba !== 0 && na.duration < 1.0) return true;
-    
+
     if (fa > 1) {
       if (fb > 1 && (fb - fa) * xba < 0) return true;
       if (fb === 1 && nb.isBlack && xba > 0) return true;
@@ -145,7 +145,7 @@ function aveVelocity(fingering: number[], pn: PNote[], depth: number, initPos: n
     const fb = fingering[i];
     const dx = Math.abs(pn[i].x - pos[fb]);
     const dt = Math.abs(pn[i].time - pn[i - 1].time) + 0.1;
-    
+
     let v = dx / dt;
     const weight = WEIGHTS[fb];
     if (pn[i].isBlack) {
@@ -153,7 +153,7 @@ function aveVelocity(fingering: number[], pn: PNote[], depth: number, initPos: n
     } else {
       v /= weight;
     }
-    
+
     sum += v;
     setFingerPos(fb, pn[i].x, pos);
   }
@@ -185,8 +185,8 @@ function optimizeSeq(
   }
 
   const choices0 = istart === 0 ? FINGERS : [istart as (typeof FINGERS)[number]];
-  let best  = new Array<number>(9).fill(1);
-  let minv  = 1e10;
+  let best = new Array<number>(9).fill(1);
+  let minv = 1e10;
   const cand = new Array<number>(9).fill(1);
 
   function btInner(level: number, relax: boolean): void {
@@ -219,7 +219,7 @@ function generate(pnotes: PNote[], lr: 'right' | 'left'): Map<string, number> {
   if (lr === 'left') for (const n of pnotes) n.x = -n.x;
 
   const pos = [0, 0, 0, 0, 0, 0];
-  const N   = pnotes.length;
+  const N = pnotes.length;
   let startF = 0;
   let out: number[] = [];
 
@@ -236,8 +236,8 @@ function generate(pnotes: PNote[], lr: 'right' | 'left'): Map<string, number> {
     }
 
     let best: number;
-    [out]  = optimizeSeq(win, startF, lr, pos.slice(), i > N - 11);
-    best   = out[0];
+    [out] = optimizeSeq(win, startF, lr, pos.slice(), i > N - 11);
+    best = out[0];
     startF = out.length > 1 ? out[1] : out[0];
 
     setFingerPos(best, pnotes[i].x, pos);
@@ -283,7 +283,7 @@ export function computeAllFingerHints(
     for (const n of notes) byTrack.get(n.track)!.push(n);
     const sorted = [...tracks].sort(
       (a, b) => median(byTrack.get(b)!.map(n => n.pitch))
-              - median(byTrack.get(a)!.map(n => n.pitch)),
+        - median(byTrack.get(a)!.map(n => n.pitch)),
     );
     rhEvts = byTrack.get(sorted[0])!;
     lhEvts = sorted.slice(1).flatMap(t => byTrack.get(t)!);
