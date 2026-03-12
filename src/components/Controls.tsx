@@ -58,7 +58,7 @@ export function Controls({
   const displayTime = Math.max(0, currentTime);
 
   return (
-    <div className="controls">
+    <div className="controls" onMouseDown={(e) => e.stopPropagation()}>
       {/* ── Transport + key shift ── */}
       <div className="controls-row controls-row--transport">
         {/* Playback buttons */}
@@ -143,7 +143,10 @@ export function Controls({
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
           }}
-          onDoubleClick={() => onPlaybackRateChange(1.0)}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            onPlaybackRateChange(1.0);
+          }}
           style={{ cursor: 'ns-resize', userSelect: 'none' }}
         >
           <span className="bpm-value">{Math.round(bpm * playbackRate)}</span>
