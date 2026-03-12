@@ -24,7 +24,6 @@ interface Props {
   totalDuration: number;
   bpm: number;
   viewMode: ViewMode;
-  hasMusicXml: boolean;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -44,7 +43,6 @@ export function Controls({
   totalDuration,
   bpm,
   viewMode,
-  hasMusicXml,
   onPlay,
   onPause,
   onStop,
@@ -69,22 +67,26 @@ export function Controls({
           📂 <span className="filename">{filename}</span>
         </button>
 
-        {hasMusicXml && (
-          <div className="view-toggle">
-            <button
-              className={`btn btn-sm ${viewMode === 'pianoroll' ? 'btn-active' : ''}`}
-              onClick={() => onViewModeChange('pianoroll')}
-            >
-              🎹 Piano Roll
-            </button>
-            <button
-              className={`btn btn-sm ${viewMode === 'sheet' ? 'btn-active' : ''}`}
-              onClick={() => onViewModeChange('sheet')}
-            >
-              🎼 Sheet Music
-            </button>
-          </div>
-        )}
+        <div className="view-toggle">
+          <button
+            className={`btn btn-sm ${viewMode === 'pianoroll' ? 'btn-active' : ''}`}
+            onClick={() => onViewModeChange('pianoroll')}
+          >
+            📊 Bar
+          </button>
+          <button
+            className={`btn btn-sm ${viewMode === 'sheet' ? 'btn-active' : ''}`}
+            onClick={() => onViewModeChange('sheet')}
+          >
+            🎼 Sheet
+          </button>
+          <button
+            className={`btn btn-sm ${viewMode === 'both' ? 'btn-active' : ''}`}
+            onClick={() => onViewModeChange('both')}
+          >
+            📊🎼 Both
+          </button>
+        </div>
       </div>
 
       {/* ── Row 2: transport + key shift ───────────────────────────── */}
@@ -158,8 +160,8 @@ export function Controls({
         </div>
       </div>
 
-      {/* ── Row 3: roll settings (only in piano roll mode) ─────────── */}
-      {viewMode === 'pianoroll' && (
+      {/* ── Row 3: roll settings (in bar or combined mode) ──────────── */}
+      {(viewMode === 'pianoroll' || viewMode === 'both') && (
         <div className="controls-row controls-row--settings">
           <span className="settings-label">Flow</span>
           <div className="settings-group">

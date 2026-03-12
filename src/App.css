@@ -75,6 +75,22 @@ html, body, #root {
   padding: 10px;
 }
 
+/* Split mode: sheet on top, piano roll fills remainder */
+.view-area--split {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.view-area--split .sheet-music-view {
+  flex-shrink: 0;
+}
+
+.view-area--split .piano-roll-view {
+  flex: 1;
+  min-height: 0;
+}
+
 /* ── Error banner ────────────────────────────────────────────── */
 .error-banner {
   background: #3f1a1a;

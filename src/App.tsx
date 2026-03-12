@@ -125,7 +125,6 @@ export default function App() {
             totalDuration={song.totalDuration}
             bpm={song.bpm}
             viewMode={viewMode}
-            hasMusicXml={!!song.musicXml}
             onPlay={handlePlay}
             onPause={handlePause}
             onStop={handleStop}
@@ -138,8 +137,33 @@ export default function App() {
             onRollSettingsChange={handleRollSettingsChange}
           />
 
-          <div className="view-area">
-            {viewMode === 'pianoroll' ? (
+          <div className={`view-area${viewMode === 'both' ? ' view-area--split' : ''}`}>
+            {viewMode === 'sheet' ? (
+              <SheetMusicView
+                notes={song.notes}
+                transpose={transpose}
+                currentTime={currentTime}
+                isPlaying={playerStatus === 'playing'}
+              />
+            ) : viewMode === 'both' ? (
+              <>
+                <SheetMusicView
+                  notes={song.notes}
+                  transpose={transpose}
+                  currentTime={currentTime}
+                  isPlaying={playerStatus === 'playing'}
+                />
+                <PianoRollView
+                  notes={song.notes}
+                  transpose={transpose}
+                  currentTime={currentTime}
+                  totalDuration={song.totalDuration}
+                  bpm={song.bpm}
+                  settings={rollSettings}
+                  fingerHints={fingerHints}
+                />
+              </>
+            ) : (
               <PianoRollView
                 notes={song.notes}
                 transpose={transpose}
@@ -149,15 +173,6 @@ export default function App() {
                 settings={rollSettings}
                 fingerHints={fingerHints}
               />
-            ) : (
-              song.musicXml && (
-                <SheetMusicView
-                  xmlString={song.musicXml}
-                  transpose={transpose}
-                  currentTime={currentTime}
-                  isPlaying={playerStatus === 'playing'}
-                />
-              )
             )}
           </div>
         </main>

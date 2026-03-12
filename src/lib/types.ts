@@ -26,7 +26,7 @@ export interface ParsedSong {
 
 export type FileType = 'midi' | 'mxl';
 
-export type ViewMode = 'pianoroll' | 'sheet';
+export type ViewMode = 'pianoroll' | 'sheet' | 'both';
 
 /** Which direction notes travel */
 export type FlowDirection = 'down' | 'up';
