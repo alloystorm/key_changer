@@ -117,7 +117,9 @@ export class Player {
     this.clearScheduled();
 
     const offset = this.pausedAt;
-    this.startedAt = this.audioCtx.currentTime - offset;
+    // Account for playback rate when calculating the wall-clock start time.
+    // Song time = (wall clock time - startedAt) * playbackRate
+    this.startedAt = this.audioCtx.currentTime - (offset / this.playbackRate);
 
     const now = this.audioCtx.currentTime;
     const LOOKAHEAD = 0; // schedule all notes at once
@@ -168,9 +170,6 @@ export class Player {
     if (wasPlaying) this.clearScheduled();
     this.pausedAt = time;
     if (wasPlaying) {
-      if (this.audioCtx) {
-        this.startedAt = this.audioCtx.currentTime - time / this.playbackRate;
-      }
       this.play();
     } else {
       this.onTimeUpdate(time);
@@ -209,7 +208,7 @@ export class Player {
   /** Call when transpose changes — reload buffers for new pitches then reschedule */
   async updateTranspose(transpose: number): Promise<void> {
     const wasPlaying = this.status === 'playing';
-    const position = wasPlaying ? (this.audioCtx!.currentTime - this.startedAt) : this.pausedAt;
+    const position = this.getCurrentTime();
 
     if (wasPlaying) {
       this.clearScheduled();
