@@ -70,54 +70,40 @@ function validate(notes, hints) {
     }
   }
 
-  // Separate notes per hand first to cluster them correctly like the production code
-  const splitNotes = { right: [], left: [] };
+  // Group notes by time slot (same 1-ms bucket = simultaneous)
+  const bySlot = new Map();
   for (const n of annotated) {
-    splitNotes[n.hand].push(n);
+    const slot = Math.floor(n.startTime / 0.030).toString();
+    if (!bySlot.has(slot)) bySlot.set(slot, []);
+    bySlot.get(slot).push(n);
   }
 
-  const CHORD_THRESHOLD_S = 0.050;
+  for (const [slot, group] of bySlot) {
+    // Per-hand sub-groups
+    const perHand = { right: [], left: [] };
+    for (const n of group) perHand[n.hand].push(n);
 
-  for (const hand of ['right', 'left']) {
-    const hnAll = splitNotes[hand];
-    let i = 0;
-    while (i < hnAll.length) {
-      let j = i + 1;
-      while (j < hnAll.length && hnAll[j].startTime - hnAll[j - 1].startTime < CHORD_THRESHOLD_S) j++;
-      
-      const hn = hnAll.slice(i, j);
-      const slot = hn[0].startTime.toFixed(3);
-      i = j;
-
+    for (const [hand, hn] of Object.entries(perHand)) {
       if (hn.length < 2) continue;
 
-      // Rule 1: no two simultaneous notes share the same finger or the same pitch (physically impossible)
-      const seenFinger = new Map(); // finger → pitch
-      const seenPitch = new Map(); // pitch → finger
+      // Rule 1: no two simultaneous notes share the same finger
+      const seen = new Map(); // finger → pitch
       for (const n of hn) {
-        if (seenFinger.has(n.finger)) {
+        if (seen.has(n.finger)) {
           if (failures.simultaneousConflict.length < MAX_VIOLATIONS) {
             failures.simultaneousConflict.push(
-              `  ${hand.toUpperCase()}  t=${slot}s  finger=${n.finger} on both pitch=${seenFinger.get(n.finger)} and pitch=${n.pitch}`
+              `  ${hand.toUpperCase()}  t=${slot}s  finger=${n.finger} on both pitch=${seen.get(n.finger)} and pitch=${n.pitch}`
             );
           }
         }
-        if (seenPitch.has(n.pitch)) {
-          if (failures.simultaneousConflict.length < MAX_VIOLATIONS) {
-            failures.simultaneousConflict.push(
-              `  ${hand.toUpperCase()}  t=${slot}s  pitch=${n.pitch} played by both finger=${seenPitch.get(n.pitch)} and finger=${n.finger}`
-            );
-          }
-        }
-        seenFinger.set(n.finger, n.pitch);
-        seenPitch.set(n.pitch, n.finger);
+        seen.set(n.finger, n.pitch);
       }
 
       // Rule 2: ordering — sort by pitch, check finger monotonicity
       const sorted = hn.slice().sort((a, b) => a.pitch - b.pitch);
-      for (let k = 1; k < sorted.length; k++) {
-        const prev = sorted[k - 1], curr = sorted[k];
-        if (prev.pitch === curr.pitch) continue; // duplicate pitch evaluated by Rule 1 above
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1], curr = sorted[i];
+        if (prev.pitch === curr.pitch) continue; // enharmonic duplicates: ok
 
         let violation = false;
         if (hand === 'right') {

@@ -85,7 +85,7 @@ function buildPNotes(evts: NoteEvent[], transpose: number): PNote[] {
   let i = 0;
   while (i < pn.length) {
     let j = i + 1;
-    while (j < pn.length && pn[j].time - pn[i].time < CHORD_THRESHOLD_S) j++;
+    while (j < pn.length && pn[j].time - pn[j - 1].time < 0.050) j++;
     if (j > i + 1) {
       for (let k = i; k < j; k++) {
         pn[k].isChord = true; pn[k].chordID = cid;
@@ -115,7 +115,8 @@ function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' | 'left'
     // to their intended approximate temporal duration thresholds (beats).
     // pianoplayer `duration < 2` meant < half note (usually ~1.0s at 120bpm).
     // pianoplayer `duration < 4` meant < whole note (usually ~2.0s at 120bpm).
-    if (fa === fb && xba !== 0 && na.duration < 2.0) return true;
+    if (fa === fb && xba !== 0 && na.duration < 1.0) return true;
+    
     if (fa > 1) {
       if (fb > 1 && (fb - fa) * xba < 0) return true;
       if (fb === 1 && nb.isBlack && xba > 0) return true;
