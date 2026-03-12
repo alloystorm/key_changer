@@ -141,6 +141,7 @@ export default function App() {
             {viewMode === 'sheet' ? (
               <SheetMusicView
                 notes={song.notes}
+                bpm={song.bpm}
                 transpose={transpose}
                 currentTime={currentTime}
                 isPlaying={playerStatus === 'playing'}
@@ -149,6 +150,7 @@ export default function App() {
               <>
                 <SheetMusicView
                   notes={song.notes}
+                  bpm={song.bpm}
                   transpose={transpose}
                   currentTime={currentTime}
                   isPlaying={playerStatus === 'playing'}

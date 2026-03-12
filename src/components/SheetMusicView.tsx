@@ -12,6 +12,9 @@ const CLEF_AREA_WIDTH       = 60;      // left area reserved for clef symbol
 const NOTE_RX               = 8;       // note head horizontal radius
 const NOTE_RY               = 5.5;     // note head vertical radius
 const LEDGER_HALF_W         = 12;      // half-width of a ledger line
+const STEM_LENGTH           = 7 * HALF_SPACE; // standard stem = 3.5 staff spaces (49px)
+const STEM_LW               = 1.5;            // stem stroke width
+const FLAG_LW               = 1.5;            // flag stroke width
 
 // Staff top-line Y positions (measured from canvas top)
 const TREBLE_TOP_LINE_Y     = 100;     // extra headroom for high ledger-line notes
@@ -47,6 +50,16 @@ const ACCY_ACTIVE    = '#ffffff';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Standard rhythmic values in quarter-note beats
+const SNAP_VALUES = [4, 2, 1, 0.5, 0.25, 0.125] as const;
+
+/** Round a raw beat duration to the nearest standard note value. */
+function snapBeats(raw: number): number {
+  return SNAP_VALUES.reduce((best, v) =>
+    Math.abs(v - raw) < Math.abs(best - raw) ? v : best
+  );
+}
+
 /** MIDI pitch → diatonic position (C0=0, D0=1, … C4=28, E4=30, …) */
 function midiToDiatonicPos(midi: number): number {
   const semitone = midi % 12;
@@ -81,19 +94,20 @@ function slotY(stave: 'treble' | 'bass', slot: number): number {
 
 interface Props {
   notes: NoteEvent[];
+  bpm: number;
   transpose: number;
   currentTime: number;
   isPlaying: boolean;
 }
 
-export function SheetMusicView({ notes, transpose, currentTime }: Props) {
+export function SheetMusicView({ notes, bpm, transpose, currentTime }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef   = useRef<number>(0);
   // Hold latest props in a ref so the RAF loop never captures stale closures
-  const propsRef  = useRef({ notes, transpose, currentTime });
+  const propsRef  = useRef({ notes, bpm, transpose, currentTime });
 
   useEffect(() => {
-    propsRef.current = { notes, transpose, currentTime };
+    propsRef.current = { notes, bpm, transpose, currentTime };
   });
 
   // ── Canvas resize ────────────────────────────────────────────────────────
@@ -117,7 +131,7 @@ export function SheetMusicView({ notes, transpose, currentTime }: Props) {
     const ctx = canvas.getContext('2d');
     if (!ctx)   { animRef.current = requestAnimationFrame(draw); return; }
 
-    const { notes: n, transpose: tp, currentTime: ct } = propsRef.current;
+    const { notes: n, bpm: songBpm, transpose: tp, currentTime: ct } = propsRef.current;
     const W          = canvas.width;
     const playLineX  = W * PLAY_LINE_X_RATIO;
     const pxPerSec   = W / VISIBLE_SECONDS;
@@ -199,18 +213,77 @@ export function SheetMusicView({ notes, transpose, currentTime }: Props) {
         ctx.fillText('#', x - NOTE_RX - 2, y);
       }
 
+      // ── Duration ────────────────────────────────────────────────────
+      const beats    = snapBeats(note.duration * (songBpm / 60));
+      const filled   = beats < 2.0;       // half & whole = open/hollow
+      const hasStem  = beats < 4.0;       // whole notes have no stem
+      const numFlags = beats <= 0.125 ? 3 : beats <= 0.25 ? 2 : beats <= 0.5 ? 1 : 0;
+      // Stem points up when note is at or below the staff middle (slot 4 = B4/D3)
+      const stemUp   = slot <= 4;
+      const stemX    = stemUp ? x + NOTE_RX * 0.85 : x - NOTE_RX * 0.85;
+      const stemFree = stemUp ? y - STEM_LENGTH : y + STEM_LENGTH;
+
+      // ── Stem ────────────────────────────────────────────────────────
+      if (hasStem) {
+        ctx.save();
+        ctx.strokeStyle = isActive ? 'rgba(255,255,255,0.75)' : color;
+        ctx.lineWidth   = STEM_LW;
+        ctx.beginPath();
+        ctx.moveTo(stemX, stemUp ? y - NOTE_RY * 0.5 : y + NOTE_RY * 0.5);
+        ctx.lineTo(stemX, stemFree);
+        ctx.stroke();
+
+        // ── Flags ──────────────────────────────────────────────────────
+        ctx.lineWidth = FLAG_LW;
+        for (let f = 0; f < numFlags; f++) {
+          const fy = stemUp
+            ? stemFree + f * HALF_SPACE * 1.8
+            : stemFree - f * HALF_SPACE * 1.8;
+          ctx.beginPath();
+          if (stemUp) {
+            // flag curves right-downward from stem tip
+            ctx.moveTo(stemX, fy);
+            ctx.bezierCurveTo(
+              stemX + NOTE_RX * 2.2, fy + HALF_SPACE * 1.2,
+              stemX + NOTE_RX * 1.8, fy + HALF_SPACE * 2.8,
+              stemX,                 fy + HALF_SPACE * 3.6,
+            );
+          } else {
+            // flag curves right-upward from stem tip
+            ctx.moveTo(stemX, fy);
+            ctx.bezierCurveTo(
+              stemX + NOTE_RX * 2.2, fy - HALF_SPACE * 1.2,
+              stemX + NOTE_RX * 1.8, fy - HALF_SPACE * 2.8,
+              stemX,                 fy - HALF_SPACE * 3.6,
+            );
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
       // ── Note head ───────────────────────────────────────────────────
+      const noteColor = isActive ? '#ffffff' : color;
       if (isActive) {
         ctx.shadowColor = color;
         ctx.shadowBlur  = 14;
-        ctx.fillStyle   = '#ffffff';
       } else {
         ctx.shadowBlur = 0;
-        ctx.fillStyle  = color;
       }
+      ctx.strokeStyle = noteColor;
+      ctx.fillStyle   = noteColor;
+      ctx.lineWidth   = 1.5;
       ctx.beginPath();
       ctx.ellipse(x, y, NOTE_RX, NOTE_RY, -0.35, 0, Math.PI * 2);
-      ctx.fill();
+      if (filled) {
+        ctx.fill();
+      } else {
+        // Open head: fill with background to mask staff lines through it, then outline
+        ctx.fillStyle = BG_COLOR;
+        ctx.fill();
+        ctx.strokeStyle = noteColor;
+        ctx.stroke();
+      }
       ctx.shadowBlur = 0;
     }
 
