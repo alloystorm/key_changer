@@ -166,7 +166,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <span className="app-logo">🎹</span>
-        <span className="app-title">Key Changer</span>
+        <span className="app-title">ShiftPiano</span>
       </header>
 
       {!song ? (

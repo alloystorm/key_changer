@@ -5,7 +5,7 @@
 // Wait, 'idb' is not in package.json. I should use raw IndexedDB or install it.
 // I'll use raw IndexedDB for zero-dependency simplicity unless it gets complex.
 
-const DB_NAME = 'KeyChangerDB';
+const DB_NAME = 'ShiftPianoDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'songs';
 
