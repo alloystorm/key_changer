@@ -127,28 +127,30 @@ export function Controls({
         <div
           className="bpm-display"
           title="Drag up/down to change speed, double-click to reset"
-          onMouseDown={(e) => {
-            e.stopPropagation();
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
             const startY = e.clientY;
             const startRate = playbackRate;
-            const onMouseMove = (moveEvent: MouseEvent) => {
-              moveEvent.stopPropagation();
+            
+            const onPointerMove = (moveEvent: PointerEvent) => {
               const deltaY = startY - moveEvent.clientY;
               const newRate = startRate + (deltaY / 100);
               onPlaybackRateChange(newRate);
             };
-            const onMouseUp = () => {
-              window.removeEventListener('mousemove', onMouseMove);
-              window.removeEventListener('mouseup', onMouseUp);
+            
+            const onPointerUp = (upEvent: PointerEvent) => {
+              upEvent.currentTarget?.removeEventListener('pointermove', onPointerMove as any);
+              upEvent.currentTarget?.removeEventListener('pointerup', onPointerUp as any);
             };
-            window.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp);
+
+            e.currentTarget.addEventListener('pointermove', onPointerMove as any);
+            e.currentTarget.addEventListener('pointerup', onPointerUp as any);
           }}
           onDoubleClick={(e) => {
             e.stopPropagation();
             onPlaybackRateChange(1.0);
           }}
-          style={{ cursor: 'ns-resize', userSelect: 'none' }}
+          style={{ cursor: 'ns-resize', userSelect: 'none', touchAction: 'none' }}
         >
           <span className="bpm-value">{Math.round(bpm * playbackRate)}</span>
           <span className="bpm-unit">{playbackRate === 1 ? 'BPM' : `${Math.round(playbackRate * 100)}%`}</span>

@@ -301,9 +301,12 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime, totalDurati
   return (
     <div
       className="sheet-music-view"
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        
+        // Capture the pointer to handle movement even outside the element
+        e.currentTarget.setPointerCapture(e.pointerId);
 
         const H = canvas.height;
         const naturalHeight = 300;
@@ -311,31 +314,30 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime, totalDurati
         scale = Math.max(0.4, Math.min(2.0, scale));
 
         const pxPerSec = 160 * scale;
-        const playLineX = CLEF_AREA_WIDTH + (50 * scale);
 
         const rect = canvas.getBoundingClientRect();
         const dragStartX = e.clientX - rect.left;
         const initialTime = currentTime;
 
-        const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
+        const handlePointerMove = (moveEvent: React.PointerEvent | PointerEvent) => {
           const mouseX = moveEvent.clientX - rect.left;
           const targetTime = initialTime - (mouseX - dragStartX) / pxPerSec;
           const clamped = Math.max(0, Math.min(targetTime, totalDuration));
           onSeek(clamped);
         };
 
-        const handleMouseUp = () => {
-          window.removeEventListener('mousemove', handleMouseMove);
-          window.removeEventListener('mouseup', handleMouseUp);
+        const handlePointerUp = (upEvent: React.PointerEvent | PointerEvent) => {
+          upEvent.currentTarget?.removeEventListener('pointermove', handlePointerMove as any);
+          upEvent.currentTarget?.removeEventListener('pointerup', handlePointerUp as any);
         };
 
         // Initial seek on click
-        handleMouseMove(e as unknown as MouseEvent);
+        handlePointerMove(e as unknown as PointerEvent);
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        e.currentTarget.addEventListener('pointermove', handlePointerMove as any);
+        e.currentTarget.addEventListener('pointerup', handlePointerUp as any);
       }}
-      style={{ cursor: 'crosshair' }}
+      style={{ cursor: 'crosshair', touchAction: 'none' }}
     >
       <canvas ref={canvasRef} className="sheet-canvas" />
     </div>

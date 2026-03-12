@@ -383,9 +383,13 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     <div
       ref={containerRef}
       className="piano-roll-view"
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
+
+        // Capture the pointer to handle movement even outside the element
+        e.currentTarget.setPointerCapture(e.pointerId);
+
         const dragStartY = e.clientY - rect.top;
         const initialTime = currentTime;
 
@@ -398,7 +402,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
         const travelPx = flowDirection === 'down' ? playLineY : rollHeight - playLineY;
         const pxPerSecond = travelPx / VISIBLE_SECONDS;
 
-        const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
+        const handlePointerMove = (moveEvent: React.PointerEvent | PointerEvent) => {
           const mouseY = moveEvent.clientY - rect.top;
 
           let targetTime: number;
@@ -411,18 +415,18 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
           onSeek(clamped);
         };
 
-        const handleMouseUp = () => {
-          window.removeEventListener('mousemove', handleMouseMove);
-          window.removeEventListener('mouseup', handleMouseUp);
+        const handlePointerUp = (upEvent: React.PointerEvent | PointerEvent) => {
+          upEvent.currentTarget?.removeEventListener('pointermove', handlePointerMove as any);
+          upEvent.currentTarget?.removeEventListener('pointerup', handlePointerUp as any);
         };
 
         // Call once for the initial click
-        handleMouseMove(e as unknown as MouseEvent);
+        handlePointerMove(e as unknown as PointerEvent);
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        e.currentTarget.addEventListener('pointermove', handlePointerMove as any);
+        e.currentTarget.addEventListener('pointerup', handlePointerUp as any);
       }}
-      style={{ cursor: 'crosshair' }}
+      style={{ cursor: 'crosshair', touchAction: 'none' }}
     >
       <canvas ref={canvasRef} className="piano-roll-canvas" />
     </div>
