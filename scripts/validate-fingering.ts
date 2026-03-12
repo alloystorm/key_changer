@@ -25,16 +25,16 @@ import { computeAllFingerHints } from '../src/lib/fingering.ts';
 function loadMidi(filePath) {
   const buf = readFileSync(filePath);
   const midi = new Midi(buf);
-  const bpm  = midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120;
+  const bpm = midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120;
   const notes = [];
   midi.tracks.forEach((track, trackIdx) => {
     track.notes.forEach(note => {
       notes.push({
-        pitch:     note.midi,
+        pitch: note.midi,
         startTime: note.time,
-        duration:  note.duration,
-        velocity:  Math.round(note.velocity * 127),
-        track:     trackIdx,
+        duration: note.duration,
+        velocity: Math.round(note.velocity * 127),
+        track: trackIdx,
       });
     });
   });
@@ -130,7 +130,7 @@ function validate(notes, hints) {
 function printStats(notes, hints) {
   const rhCount = [...hints.values()].filter(h => h.hand === 'right').length;
   const lhCount = [...hints.values()].filter(h => h.hand === 'left').length;
-  const fingerDist = { right: {1:0,2:0,3:0,4:0,5:0}, left: {1:0,2:0,3:0,4:0,5:0} };
+  const fingerDist = { right: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, left: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
   for (const h of hints.values()) fingerDist[h.hand][h.finger]++;
 
   console.log(`\nTotal notes in file : ${notes.length}`);
@@ -138,7 +138,7 @@ function printStats(notes, hints) {
   console.log('\nFinger distribution:');
   for (const hand of ['right', 'left']) {
     const d = fingerDist[hand];
-    const bar  = [1,2,3,4,5].map(f => `${f}:${d[f]}`).join('  ');
+    const bar = [1, 2, 3, 4, 5].map(f => `${f}:${d[f]}`).join('  ');
     console.log(`  ${hand.padEnd(5)}: ${bar}`);
   }
 }
@@ -163,10 +163,10 @@ console.log('\n─────────────────────�
 
 let allPassed = true;
 const rules = [
-  ['Coverage (every note has a hint)',         failures.coverage],
-  ['Finger values in range 1..5',              failures.fingerRange],
+  ['Coverage (every note has a hint)', failures.coverage],
+  ['Finger values in range 1..5', failures.fingerRange],
   ['No two simultaneous notes share a finger', failures.simultaneousConflict],
-  ['Pitch/finger order monotone per hand',     failures.orderConflict],
+  ['Pitch/finger order monotone per hand', failures.orderConflict],
 ];
 
 for (const [name, list] of rules) {
