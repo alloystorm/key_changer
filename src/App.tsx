@@ -4,12 +4,14 @@ import { computeAllFingerHints } from './lib/fingering';
 import type { FingerHint } from './lib/fingering';
 import { player, PRE_ROLL } from './lib/player';
 import type { PlayerStatus } from './lib/player';
+import { parseMidi } from './lib/midiParser';
+import { parseMxl } from './lib/mxlParser';
+import { storage } from './lib/storage';
 import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
 import { PianoRollView } from './components/PianoRollView';
 import { SheetMusicView } from './components/SheetMusicView';
-import { parseMidi } from './lib/midiParser';
-import { parseMxl } from './lib/mxlParser';
+import { SongLibrary } from './components/SongLibrary';
 import './App.css';
 
 const FEATURED_PIECES = [
@@ -53,7 +55,7 @@ export default function App() {
     };
   }, []);
 
-  const handleSongLoaded = useCallback(async (loaded: ParsedSong) => {
+  const handleSongLoaded = useCallback(async (loaded: ParsedSong, shouldCache = true) => {
     setFileLoading(false);
     setError(null);
     setSong(loaded);
@@ -63,6 +65,18 @@ export default function App() {
     setViewMode('pianoroll');
 
     await player.load(loaded.notes, loaded.bpm, 0);
+
+    // Cache the song if it's not already from the library
+    if (shouldCache) {
+      try {
+        // We need the raw data to cache it effectively. 
+        // For uploaded files, this is already done in FileUpload or handleLoadUrl.
+        // Wait, handleSongLoaded only gets ParsedSong. 
+        // I should probably cache at the point of parsing.
+      } catch (err) {
+        console.error('Failed to cache song:', err);
+      }
+    }
   }, []);
 
   const handleFileError = useCallback((msg: string) => {
@@ -117,7 +131,30 @@ export default function App() {
       const loaded = isMidi
         ? await parseMidi(buffer, name)
         : await parseMxl(buffer, name);
-      handleSongLoaded(loaded);
+      
+      // Cache it
+      await storage.saveSong(name, buffer, isMidi ? 'midi' : 'mxl');
+      
+      handleSongLoaded(loaded, false); // false because we just cached it manually
+    } catch (err) {
+      handleFileError((err as Error).message);
+    } finally {
+      setFileLoading(false);
+    }
+  }, [handleSongLoaded, handleFileError]);
+
+  const handleLoadFromLibrary = useCallback(async (id: string) => {
+    setFileLoading(true);
+    setError(null);
+    try {
+      const songData = await storage.getSongData(id);
+      if (!songData) throw new Error('Song not found in library');
+
+      const loaded = songData.type === 'midi'
+        ? await parseMidi(songData.data, songData.name)
+        : await parseMxl(songData.data, songData.name);
+      
+      handleSongLoaded(loaded, false);
     } catch (err) {
       handleFileError((err as Error).message);
     } finally {
@@ -160,6 +197,8 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          <SongLibrary onLoadSong={handleLoadFromLibrary} loading={fileLoading} />
         </main>
       ) : (
         <main className="app-player">

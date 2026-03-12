@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react';
 import type { ParsedSong } from '../lib/types';
 import { parseMidi } from '../lib/midiParser';
 import { parseMxl } from '../lib/mxlParser';
+import { storage } from '../lib/storage';
 import './FileUpload.css';
 
 interface Props {
@@ -30,6 +31,10 @@ export function FileUpload({ onSongLoaded, onError, loading }: Props) {
         const song = isMidi
           ? await parseMidi(buffer, file.name)
           : await parseMxl(buffer, file.name);
+        
+        // Cache it
+        await storage.saveSong(file.name, buffer, isMidi ? 'midi' : 'mxl');
+        
         onSongLoaded(song);
       } catch (err) {
         onError(`Failed to parse file: ${(err as Error).message}`);
