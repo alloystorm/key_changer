@@ -129,7 +129,7 @@ interface Props {
   onSeek: (t: number) => void;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fingerHints, onSeek }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, totalDuration, bpm, settings, fingerHints, onSeek }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
@@ -407,7 +407,8 @@ export function PianoRollView({ notes, transpose, currentTime, bpm, settings, fi
           } else {
             targetTime = initialTime - (mouseY - dragStartY) / pxPerSecond;
           }
-          onSeek(targetTime);
+          const clamped = Math.max(0, Math.min(targetTime, totalDuration));
+          onSeek(clamped);
         };
 
         const handleMouseUp = () => {

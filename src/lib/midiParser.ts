@@ -1,6 +1,9 @@
 import { Midi } from '@tonejs/midi';
 import type { ParsedSong, NoteEvent } from './types';
 
+const START_PADDING = 4;
+const END_PADDING = 4;
+
 export async function parseMidi(buffer: ArrayBuffer, filename: string): Promise<ParsedSong> {
   const midi = new Midi(buffer);
 
@@ -11,7 +14,7 @@ export async function parseMidi(buffer: ArrayBuffer, filename: string): Promise<
     track.notes.forEach((note) => {
       notes.push({
         pitch: note.midi,
-        startTime: note.time,
+        startTime: note.time + START_PADDING,
         duration: note.duration,
         velocity: Math.round(note.velocity * 127),
         track: trackIdx,
@@ -21,10 +24,12 @@ export async function parseMidi(buffer: ArrayBuffer, filename: string): Promise<
 
   notes.sort((a, b) => a.startTime - b.startTime);
 
-  const totalDuration =
+  const musicDuration =
     notes.length > 0
       ? Math.max(...notes.map((n) => n.startTime + n.duration))
-      : 0;
+      : START_PADDING;
+
+  const totalDuration = musicDuration + END_PADDING;
 
   return { notes, totalDuration, bpm, filename };
 }

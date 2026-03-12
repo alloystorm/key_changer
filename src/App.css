@@ -106,9 +106,10 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 20px;
   padding: 40px 24px;
+  overflow-y: auto;
 }
 
 .app-landing .file-upload {

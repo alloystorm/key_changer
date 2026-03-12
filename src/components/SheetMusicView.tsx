@@ -76,11 +76,12 @@ interface Props {
   bpm: number;
   transpose: number;
   currentTime: number;
+  totalDuration: number;
   isPlaying: boolean;
   onSeek: (t: number) => void;
 }
 
-export function SheetMusicView({ notes, bpm, transpose, currentTime, onSeek }: Props) {
+export function SheetMusicView({ notes, bpm, transpose, currentTime, totalDuration, onSeek }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const propsRef = useRef({ notes, bpm, transpose, currentTime });
@@ -319,7 +320,8 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime, onSeek }: P
         const handleMouseMove = (moveEvent: React.MouseEvent | MouseEvent) => {
           const mouseX = moveEvent.clientX - rect.left;
           const targetTime = initialTime - (mouseX - dragStartX) / pxPerSec;
-          onSeek(targetTime);
+          const clamped = Math.max(0, Math.min(targetTime, totalDuration));
+          onSeek(clamped);
         };
 
         const handleMouseUp = () => {

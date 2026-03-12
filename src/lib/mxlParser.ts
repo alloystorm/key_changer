@@ -15,6 +15,9 @@ function midiPitchFromXmlPitch(
   return (octave + 1) * 12 + base + alter;
 }
 
+const START_PADDING = 4;
+const END_PADDING = 4;
+
 /**
  * Parse a MusicXML string into note events.
  * Handles <divisions>, <tempo>, tied notes (skips <tie type="stop">).
@@ -32,7 +35,7 @@ function parseMusicXmlNotes(xml: string): { notes: NoteEvent[]; bpm: number; tot
 
   parts.forEach((part, partIdx) => {
     const measures = Array.from(part.querySelectorAll('measure'));
-    let currentTime = 0; // seconds
+    let currentTime = START_PADDING; // seconds
     let divisions = 1; // divisions per quarter note
 
     measures.forEach((measure) => {
@@ -117,8 +120,10 @@ function parseMusicXmlNotes(xml: string): { notes: NoteEvent[]; bpm: number; tot
   });
 
   allNotes.sort((a, b) => a.startTime - b.startTime);
-  const totalDuration =
-    allNotes.length > 0 ? Math.max(...allNotes.map((n) => n.startTime + n.duration)) : 0;
+  const musicDuration =
+    allNotes.length > 0 ? Math.max(...allNotes.map((n) => n.startTime + n.duration)) : START_PADDING;
+
+  const totalDuration = musicDuration + END_PADDING;
 
   return { notes: allNotes, bpm, totalDuration };
 }

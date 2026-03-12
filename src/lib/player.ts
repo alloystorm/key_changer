@@ -33,9 +33,6 @@ declare global {
 
 export type PlayerStatus = 'idle' | 'loading' | 'ready' | 'playing' | 'paused';
 
-/** Seconds of visual lead-in before the first note triggers */
-export const PRE_ROLL = 4;
-
 export class Player {
   private audioCtx: AudioContext | null = null;
   private buffers: Map<number, AudioBuffer> = new Map(); // pitch -> decoded buffer
@@ -84,7 +81,7 @@ export class Player {
     }
 
     await this.loadBuffers();
-    this.pausedAt = -PRE_ROLL;
+    this.pausedAt = 0;
     this.setStatus('ready');
   }
 
@@ -159,11 +156,11 @@ export class Player {
   stop(): void {
     this.clearScheduled();
     this.stopRaf();
-    this.pausedAt = -PRE_ROLL;
+    this.pausedAt = 0;
     if (this.status === 'playing' || this.status === 'paused') {
       this.setStatus('ready');
     }
-    this.onTimeUpdate(-PRE_ROLL);
+    this.onTimeUpdate(0);
   }
 
   seek(time: number): void {

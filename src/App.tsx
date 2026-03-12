@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
 import { computeAllFingerHints } from './lib/fingering';
 import type { FingerHint } from './lib/fingering';
-import { player, PRE_ROLL } from './lib/player';
+import { player } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { parseMidi } from './lib/midiParser';
 import { parseMxl } from './lib/mxlParser';
@@ -63,7 +63,7 @@ export default function App() {
     setSong(loaded);
     setTranspose(0);
     transposeRef.current = 0;
-    setCurrentTime(-PRE_ROLL);
+    setCurrentTime(0);
     setViewMode('pianoroll');
 
     await player.load(loaded.notes, loaded.bpm, 0);
@@ -96,13 +96,15 @@ export default function App() {
 
   const handleStop = useCallback(() => {
     player.stop();
-    setCurrentTime(-PRE_ROLL);
+    setCurrentTime(0);
   }, []);
 
   const handleSeek = useCallback((t: number) => {
-    player.seek(t);
-    setCurrentTime(t);
-  }, []);
+    if (!song) return;
+    const clamped = Math.max(0, Math.min(t, song.totalDuration));
+    player.seek(clamped);
+    setCurrentTime(clamped);
+  }, [song]);
 
   const handleTransposeChange = useCallback(
     async (delta: number) => {
@@ -268,6 +270,7 @@ export default function App() {
                   bpm={song.bpm}
                   transpose={transpose}
                   currentTime={currentTime}
+                  totalDuration={song.totalDuration}
                   isPlaying={playerStatus === 'playing'}
                   onSeek={handleSeek}
                 />
@@ -297,6 +300,7 @@ export default function App() {
                     bpm={song.bpm}
                     transpose={transpose}
                     currentTime={currentTime}
+                    totalDuration={song.totalDuration}
                     isPlaying={playerStatus === 'playing'}
                     onSeek={handleSeek}
                   />
