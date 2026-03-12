@@ -1,11 +1,12 @@
 .sheet-music-view {
   width: 100%;
+  height: 100%;
   background: #1a1a2e;
-  border-radius: 8px;
   overflow: hidden;
 }
 
 .sheet-canvas {
   display: block;
   width: 100%;
+  height: 100%;
 }
