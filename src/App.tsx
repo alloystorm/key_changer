@@ -132,10 +132,7 @@ export default function App() {
         ? await parseMidi(buffer, name)
         : await parseMxl(buffer, name);
       
-      // Cache it
-      await storage.saveSong(name, buffer, isMidi ? 'midi' : 'mxl');
-      
-      handleSongLoaded(loaded, false); // false because we just cached it manually
+      handleSongLoaded(loaded, false);
     } catch (err) {
       handleFileError((err as Error).message);
     } finally {
