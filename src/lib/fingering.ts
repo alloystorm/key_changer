@@ -85,7 +85,7 @@ export function buildPNotes(evts: NoteEvent[], transpose: number): PNote[] {
   let i = 0;
   while (i < pn.length) {
     let j = i + 1;
-    while (j < pn.length && pn[j].time - pn[j - 1].time < 0.150) j++;
+    while (j < pn.length && pn[j].time - pn[i].time < CHORD_THRESHOLD_S) j++;
     if (j > i + 1) {
       for (let k = i; k < j; k++) {
         pn[k].isChord = true; pn[k].chordID = cid;
@@ -117,12 +117,11 @@ export function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' |
     // pianoplayer `duration < 4` meant < whole note (usually ~2.0s at 120bpm).
     if (fa === fb && xba !== 0 && na.duration < 1.0) return true;
 
-    if (fa > 1) {
-      if (fb > 1 && (fb - fa) * xba < 0) return true;
-      if (fb === 1 && nb.isBlack && xba > 0) return true;
-    } else {
-      if (na.isBlack && xba < 0 && fb > 1 && na.duration < 1.0) return true;
-    }
+    // Finger-crossing rule: for fingers > 1, direction of finger movement must
+    // match direction of hand movement. Thumb crossings through black keys are
+    // no longer absolutely prohibited — the cost function already penalises
+    // thumb-on-black heavily via BFACTOR[1]=0.3.
+    if (fa > 1 && fb > 1 && (fb - fa) * xba < 0) return true;
   } else if (na.isChord && nb.isChord && na.chordID === nb.chordID) {
     const axba = Math.abs(xba) * HF / 0.8;
     if (fa === fb) return true;
@@ -216,15 +215,19 @@ function generate(pnotes: PNote[], lr: 'right' | 'left'): Map<string, number> {
   const res = new Map<string, number>();
   if (!pnotes.length) return res;
 
-  if (lr === 'left') for (const n of pnotes) n.x = -n.x;
+  // Mirror x-coordinates for left hand without mutating the caller's array.
+  const pn = lr === 'left' ? pnotes.map(n => ({ ...n, x: -n.x })) : pnotes;
 
   const pos = [0, 0, 0, 0, 0, 0];
-  const N = pnotes.length;
+  // Seed the starting hand position at the first note (middle finger as anchor)
+  // so the first window's optimizer begins from a realistic hand location.
+  if (pn.length > 0) setFingerPos(3, pn[0].x, pos);
+  const N = pn.length;
   let startF = 0;
   let out: number[] = [];
 
   for (let i = 0; i < N; i++) {
-    const win = pnotes.slice(i, i + 9);
+    const win = pn.slice(i, i + 9);
     let p = 1;
     while (win.length < 9) {
       win.push({
@@ -235,16 +238,14 @@ function generate(pnotes: PNote[], lr: 'right' | 'left'): Map<string, number> {
       });
     }
 
-    let best: number;
     [out] = optimizeSeq(win, startF, lr, pos.slice(), i > N - 11);
-    best = out[0];
+    const best = out[0];
     startF = out.length > 1 ? out[1] : out[0];
 
-    setFingerPos(best, pnotes[i].x, pos);
-    res.set(`${pnotes[i].pitch}_${pnotes[i].time.toFixed(3)}`, best);
+    setFingerPos(best, pn[i].x, pos);
+    res.set(`${pn[i].pitch}_${pn[i].time.toFixed(3)}`, best);
   }
 
-  if (lr === 'left') for (const n of pnotes) n.x = -n.x;
   return res;
 }
 
@@ -286,8 +287,22 @@ export function applyFingerHints(
       (a, b) => median(byTrack.get(b)!.map(n => n.pitch))
         - median(byTrack.get(a)!.map(n => n.pitch)),
     );
-    rhEvts = byTrack.get(sorted[0])!;
-    lhEvts = sorted.slice(1).flatMap(t => byTrack.get(t)!);
+    const topMedian = median(byTrack.get(sorted[0])!.map(n => n.pitch));
+    const botMedian = median(byTrack.get(sorted[sorted.length - 1])!.map(n => n.pitch));
+
+    if (topMedian - botMedian >= 6) {
+      // Tracks are meaningfully register-separated (>= half octave): treat the
+      // highest-median track as right hand and everything else as left hand.
+      // This is the common case for piano MIDIs that separate hands by track.
+      rhEvts = byTrack.get(sorted[0])!;
+      lhEvts = sorted.slice(1).flatMap(t => byTrack.get(t)!);
+    } else {
+      // Tracks overlap heavily (e.g. two melody voices at similar pitch).
+      // Fall back to a pitch-based split across all notes.
+      const mid = median(notes.map(n => clamp(n.pitch + transpose, 21, 108)));
+      rhEvts = notes.filter(n => clamp(n.pitch + transpose, 21, 108) > mid);
+      lhEvts = notes.filter(n => clamp(n.pitch + transpose, 21, 108) <= mid);
+    }
   } else {
     const mid = median(notes.map(n => clamp(n.pitch + transpose, 21, 108)));
     rhEvts = notes.filter(n => clamp(n.pitch + transpose, 21, 108) > mid);

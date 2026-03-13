@@ -136,16 +136,17 @@ describe('skip — melody notes', () => {
     expect(skip(2, 4, na, nb, 'right')).toBe(false);
   });
 
-  it('allows thumb-under (3→1) when the target is a white key', () => {
-    // C4 → F4: thumb tucks under on a white key — legal
+  it('allows thumb-under (3→1) on white key', () => {
+    // C4 → F4: thumb tucks under on a white key
     const [na, nb] = buildPNotes([n(60, 0, 0.3), n(65, 0.5)], 0);
     expect(skip(3, 1, na, nb, 'right')).toBe(false);
   });
 
-  it('skips thumb-to-black-key on an ascending right-hand interval', () => {
-    // C4 → C#4: thumb cannot comfortably reach an ascending black key
+  it('allows thumb-under (3→1) on black key (penalised by cost, not prohibited)', () => {
+    // C4 → C#4: thumb crossing to a black key is allowed; the cost function
+    // penalises it via BFACTOR[1]=0.3 so it is only chosen when necessary.
     const [na, nb] = buildPNotes([n(60, 0, 0.3), n(61, 0.5)], 0);
-    expect(skip(3, 1, na, nb, 'right')).toBe(true);
+    expect(skip(3, 1, na, nb, 'right')).toBe(false);
   });
 
   it('relax mode suppresses all non-chord pruning', () => {
