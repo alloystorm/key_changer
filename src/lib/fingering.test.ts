@@ -115,13 +115,22 @@ describe('skip — melody notes', () => {
     return { na, nb };
   }
 
-  it('skips the same finger reused on a different pitch (short previous note)', () => {
-    const { na, nb } = melody(60, 62, 0.3); // short note, so rule applies
+  it('skips same finger on a different pitch when notes are close in time', () => {
+    // melody() places nb at t=0.5, onset gap=0.5s < 1.0 → pruned
+    const { na, nb } = melody(60, 62, 0.3);
     expect(skip(3, 3, na, nb, 'right')).toBe(true);
   });
 
-  it('allows the same finger when the previous note is long (legato hold)', () => {
-    const { na, nb } = melody(60, 62, 2.0); // duration >= 1.0 disables same-finger rule
+  it('skips same finger even when MIDI duration is long (sustain pedal)', () => {
+    // Fast arpeggio: 80ms onset gap but sustain pedal gives duration=1.7s.
+    // The check is on inter-note onset gap, not note duration.
+    const [na, nb] = buildPNotes([n(60, 0, 1.7), n(62, 0.08)], 0);
+    expect(skip(3, 3, na, nb, 'right')).toBe(true);
+  });
+
+  it('allows same finger when the next note is played much later (large onset gap)', () => {
+    // 2s gap: enough time to reposition; same finger is acceptable.
+    const [na, nb] = buildPNotes([n(60, 0, 0.3), n(62, 2.0)], 0);
     expect(skip(3, 3, na, nb, 'right')).toBe(false);
   });
 
@@ -310,5 +319,19 @@ describe('applyFingerHints', () => {
     const notes = Array.from({ length: 5 }, (_, i) => n(60, i * 0.5, 0.4));
     expect(() => applyFingerHints(notes, 0)).not.toThrow();
     for (const note of notes) expect(note.finger).toBeDefined();
+  });
+
+  it('never repeats a finger on a fast left-hand arpeggio with sustain-pedal durations', () => {
+    // Reproduces city-ruins 1:51: D#4 F#4 A#4 C#5 played ~80ms apart but
+    // sustain pedal gives each note a MIDI duration of ~1.7s. The old check
+    // `na.duration < 1.0` never fired, allowing finger 3 to be reused (5 3 3 2).
+    // The fix uses the inter-note onset gap instead of note duration.
+    const rh = [80, 82, 84].map((p, i) => n(p, i * 0.5, 0.4, 64, 1));
+    const lh = [63, 66, 70, 73].map((p, i) => n(p, i * 0.08, 1.7, 64, 0)); // 80ms gaps
+    applyFingerHints([...rh, ...lh], 0);
+    const fingers = lh.map(note => note.finger);
+    for (let i = 1; i < fingers.length; i++) {
+      expect(fingers[i]).not.toBe(fingers[i - 1]);
+    }
   });
 });

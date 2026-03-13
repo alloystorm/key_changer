@@ -115,7 +115,10 @@ export function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' |
     // to their intended approximate temporal duration thresholds (beats).
     // pianoplayer `duration < 2` meant < half note (usually ~1.0s at 120bpm).
     // pianoplayer `duration < 4` meant < whole note (usually ~2.0s at 120bpm).
-    if (fa === fb && xba !== 0 && na.duration < 1.0) return true;
+    // Use inter-note onset gap, not MIDI note duration. Sustain pedal extends
+    // note durations well beyond 1s even for fast passages, so checking
+    // na.duration would incorrectly allow same-finger on rapid arpeggios.
+    if (fa === fb && xba !== 0 && nb.time - na.time < 1.0) return true;
 
     // Finger-crossing rule: for fingers > 1, direction of finger movement must
     // match direction of hand movement. Thumb crossings through black keys are
