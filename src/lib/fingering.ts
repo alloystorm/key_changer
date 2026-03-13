@@ -35,7 +35,7 @@ const clamp = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi :
 const WKI_IN_OCT = [0, 0.5, 1, 1.5, 2, 3, 3.5, 4, 4.5, 5, 5.5, 6];
 const WKW = 16.5 / 7; // cm per white-key interval
 
-function keyposMidi(pitch: number): number {
+export function keyposMidi(pitch: number): number {
   const oct = Math.floor(pitch / 12);
   return (oct * 7 + WKI_IN_OCT[pitch % 12] + 0.5) * WKW;
 }
@@ -52,8 +52,8 @@ const CHORD_STRETCH: Record<string, number> = {
   '3,5': 8, '2,5': 11, '1,2': 12, '1,3': 14, '1,4': 16,
 };
 
-// Internal note type
-interface PNote {
+// Internal note type — exported for tests only
+export interface PNote {
   pitch: number;
   x: number;
   time: number;
@@ -67,7 +67,7 @@ interface PNote {
 
 const CHORD_THRESHOLD_S = 0.030;
 
-function buildPNotes(evts: NoteEvent[], transpose: number): PNote[] {
+export function buildPNotes(evts: NoteEvent[], transpose: number): PNote[] {
   const sorted = [...evts]
     .map(n => ({ ...n, pitch: clamp(n.pitch + transpose, 21, 108) }))
     .sort((a, b) => a.startTime - b.startTime || a.pitch - b.pitch);
@@ -105,7 +105,7 @@ function setFingerPos(fi: number, noteX: number, pos: number[]): void {
 }
 
 // Pruning rules (hand.py:skip)
-function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' | 'left', relax = false): boolean {
+export function skip(fa: number, fb: number, na: PNote, nb: PNote, lr: 'right' | 'left', relax = false): boolean {
   const xba = nb.x - na.x;
 
   if (!na.isChord && !nb.isChord) {
