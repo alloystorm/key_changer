@@ -267,7 +267,8 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
       const fingerHint = showFingers ? note.finger : undefined;
 
       // Duration symbol — omitted when a finger hint will be shown (finger wins)
-      if (noteH >= 22 && w >= 10 && !fingerHint) {
+      // and also omitted when showFingers is off (user request: only show when finger numbers are visible)
+      if (showFingers && noteH >= 22 && w >= 10 && !fingerHint) {
         const beats = note.duration * (bpm / 60);
         const sz = Math.min(w * 0.3, 4.0);
         // Position cy in lower 65% so the stem (going up 3×sz) stays inside the bar

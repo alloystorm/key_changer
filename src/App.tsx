@@ -37,7 +37,7 @@ export default function App() {
   const [rollSettings, setRollSettings] = useState<RollSettings>({
     flowDirection: 'down',
     triggerPosition: 'bottom',
-    showFingers: false,
+    showFingers: true,
   });
 
   const handleRollSettingsChange = useCallback((patch: Partial<RollSettings>) => {

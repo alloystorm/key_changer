@@ -112,21 +112,21 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
       ctx.strokeRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, wkH);
 
       if (midi % 12 === 0) {
-        ctx.fillStyle = active ? 'rgba(0,0,0,0.5)' : '#999';
-        ctx.font = `${Math.min(9, height * 0.2)}px sans-serif`;
+        ctx.fillStyle = '#111';
+        ctx.font = `bold ${Math.min(10, height * 0.22)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(`C${Math.floor(midi / 12) - 1}`, SIDEBAR_WIDTH + geom.x + geom.w / 2, wkH - 2);
+        ctx.fillText(`C${Math.floor(midi / 12) - 1}`, SIDEBAR_WIDTH + geom.x + geom.w / 2, wkH - 3);
       }
 
       if (showFingers && active) {
         const n = activeNote.get(midi);
         if (n?.finger) {
           ctx.fillStyle = '#111';
-          ctx.font = `bold ${Math.min(geom.w * 0.6, height * 0.4, 12)}px sans-serif`;
+          ctx.font = `bold ${Math.min(geom.w * 0.65, height * 0.4, 12)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, wkH * 0.38);
+          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, height * 0.12);
         }
       }
     }
@@ -161,10 +161,10 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
         const n = activeNote.get(midi);
         if (n?.finger) {
           ctx.fillStyle = '#fff';
-          ctx.font = `bold ${Math.min(geom.w * 0.7, height * 0.35, 11)}px sans-serif`;
+          ctx.font = `bold ${Math.min(geom.w * 0.65, height * 0.4, 12)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, bkH * 0.38);
+          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, height * 0.12);
         }
       }
     }
