@@ -1,30 +1,138 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { NoteEvent } from '../lib/types';
-import { 
-  SIDEBAR_WIDTH, 
-  MIDI_LOW, 
-  MIDI_HIGH, 
-  NOTE_COLORS, 
-  buildKeyGeometry, 
-  type KeyGeom 
+import {
+  SIDEBAR_WIDTH,
+  MIDI_LOW,
+  MIDI_HIGH,
+  NOTE_COLORS,
+  buildKeyGeometry,
+  hexToRgb,
+  type KeyGeom,
 } from '../lib/layout';
 
 import './ParticleOverlay.css';
 
-interface Particle {
-  x: number;
-  y: number;
-  initialX: number;
-  vx: number;
-  vy: number;
-  life: number; // 0 to 1
-  color: string;
-  size: number;
-  phase: number; // For wavy motion
-  freq: number;  // frequency of weave
-  amp: number;   // amplitude of weave
+// ── Physics constants ─────────────────────────────────────────────────────────
+/** Downward gravitational acceleration in px/s² */
+const GRAVITY = 180;
+const MAX_PARTICLES = 700;
+
+/**
+ * 2D spatially-coherent flow field via layered waves (pseudo-Perlin).
+ * Returns [fx, fy] in px/s — the ambient "wind" velocity at a point.
+ *
+ * Two frequency layers with different spatial & temporal scales produce
+ * coherent, slowly-drifting turbulence without external dependencies.
+ */
+function flowField(x: number, y: number, t: number): [number, number] {
+  const s = 0.003;
+  const fx =
+    Math.sin(x * s * 1.7 + y * s * 0.6 + t * 0.8) * 48 +
+    Math.sin(x * s * 0.5 - y * s * 1.4 + t * 0.35) * 22;
+  const fy =
+    Math.cos(x * s * 0.9 + y * s * 1.5 + t * 0.55) * 30 +
+    Math.cos(x * s * 1.3 - y * s * 0.4 + t * 0.9) * 14;
+  return [fx, fy];
 }
 
+// ── Particle data ─────────────────────────────────────────────────────────────
+type ParticleType = 'spark' | 'ember' | 'smoke';
+
+interface Particle {
+  type: ParticleType;
+  x: number;
+  y: number;
+  /** Velocity in px/s */
+  vx: number;
+  vy: number;
+  /** Elapsed age in seconds */
+  age: number;
+  /** Total lifespan in seconds */
+  lifetime: number;
+  /** Pre-parsed RGB components for fast rgba() strings */
+  r: number;
+  g: number;
+  b: number;
+  /** Base visual radius in px */
+  size: number;
+  /**
+   * Linear drag coefficient (s⁻¹).
+   * Deceleration = drag * velocity → terminal velocity = flow / drag.
+   */
+  drag: number;
+  /**
+   * Fraction of GRAVITY this particle feels.
+   * sparks ≈ 1, embers ≈ 0.25, smoke ≈ 0 (near-neutral buoyancy).
+   */
+  gravityScale: number;
+  /**
+   * Sensitivity to the ambient flow field.
+   * 0 = unaffected, 1 = fully carried by the wind.
+   */
+  turbFactor: number;
+}
+
+function r(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
+function makeSpark(x: number, y: number, ri: number, gi: number, bi: number): Particle {
+  const angle = r(-Math.PI * 0.85, -Math.PI * 0.15);
+  const speed = r(130, 360);
+  return {
+    type: 'spark',
+    x, y,
+    vx: Math.cos(angle) * speed + r(-25, 25),
+    vy: Math.sin(angle) * speed,
+    age: 0,
+    lifetime: r(0.30, 0.65),
+    r: ri, g: gi, b: bi,
+    size: r(1.0, 2.2),
+    drag: r(1.8, 3.0),
+    gravityScale: r(0.75, 1.25),
+    turbFactor: r(0.02, 0.08),
+  };
+}
+
+function makeEmber(x: number, y: number, ri: number, gi: number, bi: number): Particle {
+  const angle = r(-Math.PI * 0.78, -Math.PI * 0.22);
+  const speed = r(35, 120);
+  return {
+    type: 'ember',
+    x: x + r(-7, 7),
+    y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    age: 0,
+    lifetime: r(0.85, 1.7),
+    r: ri, g: gi, b: bi,
+    size: r(2.0, 4.5),
+    drag: r(0.8, 1.4),
+    gravityScale: r(0.12, 0.32),
+    turbFactor: r(0.25, 0.55),
+  };
+}
+
+function makeSmoke(x: number, y: number, ri: number, gi: number, bi: number): Particle {
+  return {
+    type: 'smoke',
+    x: x + r(-12, 12),
+    y,
+    vx: r(-20, 20),
+    vy: r(-40, -12),
+    age: 0,
+    lifetime: r(1.3, 2.6),
+    r: Math.min(255, ri + 60),
+    g: Math.min(255, gi + 55),
+    b: Math.min(255, bi + 55),
+    size: r(10, 26),
+    drag: r(2.8, 4.5),
+    gravityScale: r(-0.06, 0.06), // near-neutral — slight buoyancy variation
+    turbFactor: r(0.4, 0.7),
+  };
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 interface Props {
   notes: NoteEvent[];
   transpose: number;
@@ -33,116 +141,159 @@ interface Props {
 }
 
 export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<Particle[]>([]);
-  const lastTimeRef = useRef(currentTime);
-  const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
-  const sizeRef = useRef({ width: 0, height: 0 });
+  const lastTimeRef  = useRef(currentTime);
+  const keyGeomRef   = useRef<Map<number, KeyGeom>>(new Map());
+  const sizeRef      = useRef({ width: 0, height: 0 });
+  /** Wall-clock timestamp of the previous animation frame (ms) */
+  const lastFrameMs  = useRef(performance.now());
+  /** Monotonically increasing simulation time (s) for the flow field */
+  const simTime      = useRef(0);
 
-  const spawnParticles = useCallback((baseX: number, y: number, track: number, width: number, burst: boolean) => {
-    const color = NOTE_COLORS[track % NOTE_COLORS.length];
-    const count = burst ? (12 + Math.random() * 8) : (0.5 + Math.random() * 1.5);
-    
-    for (let i = 0; i < count; i++) {
-      const offsetX = (Math.random() - 0.5) * width;
-      const x = baseX + offsetX;
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.3;
-      const speed = 0.8 + Math.random() * 2.5;
-      
-      particlesRef.current.push({
-        x,
-        y,
-        initialX: x,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 1.0,
-        color,
-        size: 1.2 + Math.random() * 2.2,
-        phase: Math.random() * Math.PI * 2,
-        freq: 0.03 + Math.random() * 0.07,
-        amp: 0.3 + Math.random() * 1.2,
-      });
-    }
+  // ── Spawn helpers ───────────────────────────────────────────────────────────
+  const burst = useCallback((cx: number, cy: number, track: number) => {
+    const hex = NOTE_COLORS[track % NOTE_COLORS.length];
+    const { r: ri, g: gi, b: bi } = hexToRgb(hex);
+    const ps = particlesRef.current;
+
+    const room = MAX_PARTICLES - ps.length;
+    if (room <= 0) return;
+
+    const nSparks = Math.min(Math.floor(r(4, 8)), room);
+    for (let i = 0; i < nSparks; i++) ps.push(makeSpark(cx, cy, ri, gi, bi));
+
+    const nEmbers = Math.min(Math.floor(r(5, 10)), room - nSparks);
+    for (let i = 0; i < nEmbers; i++) ps.push(makeEmber(cx, cy, ri, gi, bi));
+
+    const nSmoke = Math.min(Math.floor(r(2, 4)), room - nSparks - nEmbers);
+    for (let i = 0; i < nSmoke; i++) ps.push(makeSmoke(cx, cy, ri, gi, bi));
   }, []);
 
-  const updateAndDraw = useCallback((dt: number) => {
+  const trickle = useCallback((cx: number, cy: number, track: number) => {
+    if (particlesRef.current.length >= MAX_PARTICLES) return;
+    const hex = NOTE_COLORS[track % NOTE_COLORS.length];
+    const { r: ri, g: gi, b: bi } = hexToRgb(hex);
+    if (Math.random() < 0.35) particlesRef.current.push(makeEmber(cx, cy, ri, gi, bi));
+    if (Math.random() < 0.08) particlesRef.current.push(makeSmoke(cx, cy, ri, gi, bi));
+  }, []);
+
+  // ── Physics + render ────────────────────────────────────────────────────────
+  const updateAndDraw = useCallback((nowMs: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Real elapsed time, capped at 50 ms to absorb tab-hidden jumps
+    const dt = Math.min((nowMs - lastFrameMs.current) / 1000, 0.05);
+    lastFrameMs.current = nowMs;
+    simTime.current += dt;
+    const t = simTime.current;
+
     const { width, height } = sizeRef.current;
     ctx.clearRect(0, 0, width, height);
-
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
-    const particles = particlesRef.current;
-    if (particles.length > 1200) {
-      particles.splice(0, particles.length - 1200);
-    }
+    const ps = particlesRef.current;
 
-    const friction = 0.985;
+    for (let i = ps.length - 1; i >= 0; i--) {
+      const p = ps[i];
+      p.age += dt;
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      
-      // 1. Damping (Friction)
-      p.vx *= friction;
-      p.vy *= friction;
-
-      // 2. Buoyancy vs Gravity
-      // Hot ash rises initially, then slows down/drifts
-      p.vy -= 0.045; 
-
-      // 3. Complex Multi-layered Turbulence
-      p.phase += p.freq;
-      // Primary wave
-      p.vx += Math.sin(p.phase) * 0.05;
-      // Secondary micro-jitter
-      p.vx += (Math.random() - 0.5) * 0.12;
-      // Subtle vertical wave
-      p.vy += Math.cos(p.phase * 0.5) * 0.02;
-      
-      p.x += p.vx;
-      p.y += p.vy;
-
-      p.life -= 0.01 + (Math.random() * 0.005);
-      
-      if (p.life <= 0 || p.y < -100) {
-        particles.splice(i, 1);
+      if (p.age >= p.lifetime || p.y < -150) {
+        ps.splice(i, 1);
         continue;
       }
 
-      // Visual Refinement: Flickering and pulsing
-      const flicker = 0.7 + Math.random() * 0.3;
-      const pulse = 0.9 + Math.sin(p.phase * 4) * 0.1;
-      const alpha = p.life * flicker;
-      const drawSize = p.size * pulse;
+      // ── Physics integration (semi-implicit Euler) ─────────────────────────
+      // Flow field gives ambient "wind" in px/s
+      const [fx, fy] = flowField(p.x, p.y, t);
 
-      ctx.beginPath();
-      // External Glow (Smoke/Light bleed)
-      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawSize * 4);
-      grad.addColorStop(0, p.color);
-      grad.addColorStop(0.3, p.color);
-      grad.addColorStop(1, 'transparent');
-      
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = alpha * 0.6;
-      ctx.arc(p.x, p.y, drawSize * 4, 0, Math.PI * 2);
-      ctx.fill();
+      // Linear drag: deceleration ∝ velocity (Stokes drag for small particles)
+      // Turbulence: particle is nudged toward the local flow velocity
+      p.vx += (-p.drag * p.vx + fx * p.turbFactor) * dt;
+      // Gravity is additive (positive = downward in canvas coords)
+      p.vy += (-p.drag * p.vy + fy * p.turbFactor + GRAVITY * p.gravityScale) * dt;
 
-      // Bright Ember Core
-      ctx.fillStyle = '#fff';
-      ctx.globalAlpha = alpha * 0.95;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, drawSize * 0.6, 0, Math.PI * 2);
-      ctx.fill();
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const life = 1 - p.age / p.lifetime; // 1 = fresh, 0 = dead
+
+      // ── Rendering ─────────────────────────────────────────────────────────
+      if (p.type === 'spark') {
+        // Motion-blur streak along velocity direction
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        const len = Math.max(speed * dt * 7, 2.5);
+        const nx = speed > 0.1 ? p.vx / speed : 0;
+        const ny = speed > 0.1 ? p.vy / speed : 1;
+        const alpha = Math.pow(life, 0.45) * 0.92;
+
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = `rgba(${p.r},${p.g},${p.b},1)`;
+        ctx.lineWidth = p.size;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x - nx * len * 0.55, p.y - ny * len * 0.55);
+        ctx.lineTo(p.x + nx * len * 0.45, p.y + ny * len * 0.45);
+        ctx.stroke();
+
+        // White-hot leading tip
+        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (p.type === 'ember') {
+        // Radial gradient: white-hot core → colored glow → transparent
+        const alpha = Math.pow(life, 0.55);
+        const radius = p.size * (0.55 + 0.45 * life);
+        const glow = radius * 3.5;
+
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glow);
+        grad.addColorStop(0,    `rgba(255,255,240,${(alpha * 0.95).toFixed(3)})`);
+        grad.addColorStop(0.22, `rgba(${p.r},${p.g},${p.b},${(alpha * 0.85).toFixed(3)})`);
+        grad.addColorStop(1,    `rgba(${p.r},${p.g},${p.b},0)`);
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glow, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else {
+        // Smoke puff: fades in over 0.2 s then out; expands as it rises
+        const fadeIn = Math.min(p.age / 0.2, 1);
+        const alpha = fadeIn * Math.pow(life, 1.6) * 0.13;
+        const radius = p.size * (1 + (1 - life) * 0.9);
+
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},1)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+
     ctx.restore();
   }, []);
 
+  // ── Animation loop ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    let frameId: number;
+    const loop = (nowMs: number) => {
+      updateAndDraw(nowMs);
+      frameId = requestAnimationFrame(loop);
+    };
+    frameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frameId);
+  }, [updateAndDraw]);
+
+  // ── Resize observer ─────────────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -161,30 +312,19 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     return () => ro.disconnect();
   }, []);
 
-  // Frame loop
+  // ── Note hit & sustain detection ────────────────────────────────────────────
   useEffect(() => {
-    let frameId: number;
-    const loop = () => {
-      updateAndDraw(16);
-      frameId = requestAnimationFrame(loop);
-    };
-    frameId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frameId);
-  }, [updateAndDraw]);
-
-  // Note hit & sustain detection
-  useEffect(() => {
-    const keyboardEl = keyboardRef.current;
+    const keyboardEl  = keyboardRef.current;
     const containerEl = containerRef.current;
     if (!keyboardEl || !containerEl) return;
 
-    const parentRect = containerEl.getBoundingClientRect();
+    const parentRect   = containerEl.getBoundingClientRect();
     const keyboardRect = keyboardEl.getBoundingClientRect();
-    const hitY = keyboardRect.top - parentRect.top;
-    const hitX = keyboardRect.left - parentRect.left;
+    const hitY  = keyboardRect.top  - parentRect.top;
+    const hitX  = keyboardRect.left - parentRect.left;
     const rollWidth = keyboardRect.width - SIDEBAR_WIDTH;
 
-    // Refresh geometry if width changed significantly
+    // Refresh key geometry when canvas width changes
     const existingWkW = keyGeomRef.current.get(MIDI_LOW + 2)?.w ?? 0;
     const expectedWkW = rollWidth / 52;
     if (Math.abs(existingWkW - expectedWkW) > 0.5) {
@@ -192,24 +332,27 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     }
     const keyGeom = keyGeomRef.current;
 
-    // Check for notes that are active
-    notes.forEach(note => {
-      const isCurrentlyActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
-      if (!isCurrentlyActive) return;
+    notes.forEach((note) => {
+      const isActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
+      if (!isActive) return;
 
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
-      const geom = keyGeom.get(pitch);
-      if (geom) {
-        const cx = hitX + SIDEBAR_WIDTH + geom.x + geom.w / 2;
-        const cy = hitY;
+      const geom  = keyGeom.get(pitch);
+      if (!geom) return;
 
-        const isJustStarted = note.startTime >= lastTimeRef.current && note.startTime < currentTime;
-        spawnParticles(cx, cy, note.track, geom.w, isJustStarted);
+      const cx = hitX + SIDEBAR_WIDTH + geom.x + geom.w / 2;
+      const cy = hitY;
+
+      const isJustStarted = note.startTime >= lastTimeRef.current && note.startTime < currentTime;
+      if (isJustStarted) {
+        burst(cx, cy, note.track);
+      } else {
+        trickle(cx, cy, note.track);
       }
     });
 
     lastTimeRef.current = currentTime;
-  }, [notes, currentTime, transpose, keyboardRef, spawnParticles]);
+  }, [notes, currentTime, transpose, keyboardRef, burst, trickle]);
 
   return (
     <div ref={containerRef} className="particle-overlay">
