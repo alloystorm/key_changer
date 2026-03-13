@@ -54,6 +54,15 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
+function hexToRgb(hex: string): { r: number, g: number, b: number } {
+  const num = parseInt(hex.slice(1), 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
 interface Props {
   notes: NoteEvent[];
   transpose: number;
@@ -91,13 +100,30 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     const activeKeys = new Set<number>();
     const activeTracks = new Map<number, number>();
     const activeNote = new Map<number, NoteEvent>();
+    const previewAlphas = new Map<number, number>(); // pitch -> alpha (0-0.5)
+    const previewTracks = new Map<number, number>(); // pitch -> track index
+
+    const PREVIEW_WINDOW = 1.0; // seconds
 
     notes.forEach((note) => {
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
-      if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
+      const isCurrentlyActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
+      
+      if (isCurrentlyActive) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
         activeNote.set(pitch, note);
+      } else if (note.startTime > currentTime) {
+        const dt = note.startTime - currentTime;
+        if (dt < PREVIEW_WINDOW) {
+          // If already has a preview, only replace if this one is sooner
+          const existingAlpha = previewAlphas.get(pitch);
+          const newAlpha = (1 - dt / PREVIEW_WINDOW) * 0.5;
+          if (existingAlpha === undefined || newAlpha > existingAlpha) {
+            previewAlphas.set(pitch, newAlpha);
+            previewTracks.set(pitch, note.track);
+          }
+        }
       }
     });
 
@@ -115,12 +141,23 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
       if (isBlack(midi)) continue;
       const geom = keyGeom.get(midi)!;
       const active = activeKeys.has(midi);
-      const trackIdx = activeTracks.get(midi) ?? 0;
+      const trackIdx = active ? (activeTracks.get(midi) ?? 0) : (previewTracks.get(midi) ?? 0);
+      const alpha = active ? 1 : (previewAlphas.get(midi) ?? 0);
 
-      ctx.fillStyle = active ? NOTE_COLORS[trackIdx % NOTE_COLORS.length] : '#f0f0f0';
+      // Draw base key
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, wkH);
+
+      // Draw track color overlay
+      if (alpha > 0) {
+        const color = NOTE_COLORS[trackIdx % NOTE_COLORS.length];
+        const rgb = hexToRgb(color);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, wkH);
+      }
+
       ctx.strokeStyle = '#555';
       ctx.lineWidth = 0.5;
-      ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, wkH);
       ctx.strokeRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, wkH);
 
       if (midi % 12 === 0) {
@@ -149,12 +186,24 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
       const geom = keyGeom.get(midi);
       if (!geom) continue;
       const active = activeKeys.has(midi);
-      const trackIdx = activeTracks.get(midi) ?? 0;
+      const trackIdx = active ? (activeTracks.get(midi) ?? 0) : (previewTracks.get(midi) ?? 0);
+      const alpha = active ? 1 : (previewAlphas.get(midi) ?? 0);
 
-      ctx.fillStyle = active ? shadeColor(NOTE_COLORS[trackIdx % NOTE_COLORS.length], -20) : '#1a1a1a';
+      // Draw base key
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, bkH);
+
+      // Draw track color overlay
+      if (alpha > 0) {
+        let color = NOTE_COLORS[trackIdx % NOTE_COLORS.length];
+        if (active) color = shadeColor(color, -20);
+        const rgb = hexToRgb(color);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, bkH);
+      }
+
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 0.5;
-      ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, bkH);
       ctx.strokeRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, bkH);
 
       if (showFingers && active && geom.w >= 8) {
