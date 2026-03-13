@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
 import { applyFingerHints } from './lib/fingering';
+import { buildChordEvents } from './lib/chords';
+import type { ChordEvent } from './lib/chords';
 import { player } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { parseMidi } from './lib/midiParser';
