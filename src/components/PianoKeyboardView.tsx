@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { NoteEvent } from '../lib/types';
-import type { FingerHint } from '../lib/fingering';
+
 import './PianoKeyboardView.css';
 
 const SIDEBAR_WIDTH = 36;
@@ -59,10 +59,9 @@ interface Props {
   transpose: number;
   currentTime: number;
   showFingers: boolean;
-  fingerHints: Map<string, FingerHint>;
 }
 
-export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, fingerHints }: Props) {
+export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
@@ -91,14 +90,14 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
 
     const activeKeys = new Set<number>();
     const activeTracks = new Map<number, number>();
-    const activeHintKey = new Map<number, string>();
+    const activeNote = new Map<number, NoteEvent>();
 
     notes.forEach((note) => {
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
       if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
-        activeHintKey.set(pitch, `${pitch}_${note.startTime.toFixed(3)}`);
+        activeNote.set(pitch, note);
       }
     });
 
@@ -133,13 +132,13 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
       }
 
       if (showFingers && active) {
-        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
-        if (hint) {
+        const n = activeNote.get(midi);
+        if (n?.finger) {
           ctx.fillStyle = '#111';
           ctx.font = `bold ${Math.min(geom.w * 0.6, height * 0.4, 12)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, wkH * 0.38);
+          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, wkH * 0.38);
         }
       }
     }
@@ -159,17 +158,17 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
       ctx.strokeRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, bkH);
 
       if (showFingers && active && geom.w >= 8) {
-        const hint = fingerHints.get(activeHintKey.get(midi) ?? '');
-        if (hint) {
+        const n = activeNote.get(midi);
+        if (n?.finger) {
           ctx.fillStyle = '#fff';
           ctx.font = `bold ${Math.min(geom.w * 0.7, height * 0.35, 11)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(String(hint.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, bkH * 0.38);
+          ctx.fillText(String(n.finger), SIDEBAR_WIDTH + geom.x + geom.w / 2, bkH * 0.38);
         }
       }
     }
-  }, [notes, transpose, currentTime, showFingers, fingerHints]);
+  }, [notes, transpose, currentTime, showFingers]);
 
   useEffect(() => {
     const container = containerRef.current;

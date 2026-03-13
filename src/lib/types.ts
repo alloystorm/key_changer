@@ -10,6 +10,10 @@ export interface NoteEvent {
   velocity: number;
   /** Track/part index (for colouring) */
   track: number;
+  /** Finger number assigned by the fingering algorithm (1=thumb … 5=pinky) */
+  finger?: 1 | 2 | 3 | 4 | 5;
+  /** Which hand this note is assigned to */
+  hand?: 'right' | 'left';
 }
 
 export interface ParsedSong {

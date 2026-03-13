@@ -266,14 +266,15 @@ function median(arr: number[]): number {
  * Result key: "${transposedPitch}_${startTime.toFixed(3)}" — matches the key
  * built inside PianoRollView's draw loop.
  *
- * Call once at file load and once per transpose change.
+ * Call once at file load (transpose=0). Finger assignments are stored directly
+ * on each NoteEvent (note.finger, note.hand) and remain valid regardless of
+ * subsequent transpose changes.
  */
-export function computeAllFingerHints(
+export function applyFingerHints(
   notes: NoteEvent[],
   transpose: number,
-): Map<string, FingerHint> {
-  const result = new Map<string, FingerHint>();
-  if (!notes.length) return result;
+): void {
+  if (!notes.length) return;
 
   const tracks = [...new Set(notes.map(n => n.track))].sort((a, b) => a - b);
   let rhEvts: NoteEvent[], lhEvts: NoteEvent[];
@@ -296,12 +297,16 @@ export function computeAllFingerHints(
   const rhMap = generate(buildPNotes(rhEvts, transpose), 'right');
   const lhMap = generate(buildPNotes(lhEvts, transpose), 'left');
 
-  for (const [key, finger] of rhMap) {
-    result.set(key, { pitch: parseInt(key, 10), finger: finger as FingerHint['finger'], hand: 'right' });
+  for (const note of notes) {
+    const key = `${clamp(note.pitch + transpose, 21, 108)}_${note.startTime.toFixed(3)}`;
+    const rhFinger = rhMap.get(key);
+    const lhFinger = lhMap.get(key);
+    if (rhFinger !== undefined) {
+      note.finger = rhFinger as FingerHint['finger'];
+      note.hand = 'right';
+    } else if (lhFinger !== undefined) {
+      note.finger = lhFinger as FingerHint['finger'];
+      note.hand = 'left';
+    }
   }
-  for (const [key, finger] of lhMap) {
-    result.set(key, { pitch: parseInt(key, 10), finger: finger as FingerHint['finger'], hand: 'left' });
-  }
-
-  return result;
 }

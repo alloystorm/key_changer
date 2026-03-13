@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
-import { computeAllFingerHints } from './lib/fingering';
-import type { FingerHint } from './lib/fingering';
+import { applyFingerHints } from './lib/fingering';
 import { player } from './lib/player';
 import type { PlayerStatus } from './lib/player';
 import { parseMidi } from './lib/midiParser';
@@ -32,7 +31,6 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
-  const [fingerHints, setFingerHints] = useState<Map<string, FingerHint>>(new Map());
   const [rollSettings, setRollSettings] = useState<RollSettings>({
     flowDirection: 'down',
     triggerPosition: 'bottom',
@@ -60,7 +58,7 @@ export default function App() {
     transposeRef.current = 0;
     setCurrentTime(0);
     setViewMode('pianoroll');
-    setFingerHints(computeAllFingerHints(loaded.notes, 0));
+    applyFingerHints(loaded.notes, 0);
 
     await player.load(loaded.notes, loaded.bpm, 0);
 
@@ -121,7 +119,6 @@ export default function App() {
   const handleChangeFile = useCallback(() => {
     player.stop();
     setSong(null);
-    setFingerHints(new Map());
     setCurrentTime(0);
     setTranspose(0);
     transposeRef.current = 0;
@@ -283,7 +280,6 @@ export default function App() {
                   totalDuration={song.totalDuration}
                   bpm={song.bpm}
                   settings={rollSettings}
-                  fingerHints={fingerHints}
                   onSeek={handleSeek}
                 />
               </div>
@@ -310,7 +306,6 @@ export default function App() {
                     totalDuration={song.totalDuration}
                     bpm={song.bpm}
                     settings={rollSettings}
-                    fingerHints={fingerHints}
                     onSeek={handleSeek}
                   />
                 </div>
@@ -323,7 +318,6 @@ export default function App() {
                 transpose={transpose}
                 currentTime={currentTime}
                 showFingers={rollSettings.showFingers}
-                fingerHints={fingerHints}
               />
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { NoteEvent, RollSettings } from '../lib/types';
-import type { FingerHint } from '../lib/fingering';
+
 import './PianoRollView.css';
 
 // ─── Layout constants ────────────────────────────────────────────────────────
@@ -125,11 +125,10 @@ interface Props {
   totalDuration: number;
   bpm: number;
   settings: RollSettings;
-  fingerHints: Map<string, FingerHint>;
   onSeek: (t: number) => void;
 }
 
-export function PianoRollView({ notes, transpose, currentTime, totalDuration, bpm, settings, fingerHints, onSeek }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, totalDuration, bpm, settings, onSeek }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
@@ -311,8 +310,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
       }
 
       // Pre-compute finger hint so we can give it priority over the duration symbol
-      const fingerKey = `${pitch}_${note.startTime.toFixed(3)}`;
-      const fingerHint = showFingers ? fingerHints.get(fingerKey) : undefined;
+      const fingerHint = showFingers ? note.finger : undefined;
 
       // Duration symbol — omitted when a finger hint will be shown (finger wins)
       if (noteH >= 22 && w >= 10 && !fingerHint) {
@@ -334,10 +332,10 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
         ctx.fillStyle = geom.isBlack ? '#fff' : '#111';
         if (flowDirection === 'down') {
           ctx.textBaseline = 'bottom';
-          ctx.fillText(String(fingerHint.finger), x + w / 2, yBottom - 2);
+          ctx.fillText(String(fingerHint), x + w / 2, yBottom - 2);
         } else {
           ctx.textBaseline = 'top';
-          ctx.fillText(String(fingerHint.finger), x + w / 2, yTop + 2);
+          ctx.fillText(String(fingerHint), x + w / 2, yTop + 2);
         }
       }
 
@@ -354,7 +352,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
 
-  }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, fingerHints]);
+  }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers]);
 
   // Resize observer
   useEffect(() => {
