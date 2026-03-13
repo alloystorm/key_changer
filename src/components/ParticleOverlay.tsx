@@ -40,13 +40,16 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
   const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
   const sizeRef = useRef({ width: 0, height: 0 });
 
-  const spawnParticles = useCallback((x: number, y: number, track: number, burst: boolean) => {
+  const spawnParticles = useCallback((baseX: number, y: number, track: number, width: number, burst: boolean) => {
     const color = NOTE_COLORS[track % NOTE_COLORS.length];
-    // Burst for hit, small amount for continuous
-    const count = burst ? (15 + Math.random() * 10) : (1 + Math.random() * 2);
+    const count = burst ? (12 + Math.random() * 8) : (0.5 + Math.random() * 1.5);
+    
     for (let i = 0; i < count; i++) {
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.4;
-      const speed = 0.5 + Math.random() * 2;
+      const offsetX = (Math.random() - 0.5) * width;
+      const x = baseX + offsetX;
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.3;
+      const speed = 0.8 + Math.random() * 2.5;
+      
       particlesRef.current.push({
         x,
         y,
@@ -55,10 +58,10 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
         vy: Math.sin(angle) * speed,
         life: 1.0,
         color,
-        size: 1.5 + Math.random() * 2.5,
+        size: 1.2 + Math.random() * 2.2,
         phase: Math.random() * Math.PI * 2,
-        freq: 0.05 + Math.random() * 0.1,
-        amp: 0.5 + Math.random() * 1.5,
+        freq: 0.03 + Math.random() * 0.07,
+        amp: 0.3 + Math.random() * 1.2,
       });
     }
   }, []);
@@ -76,51 +79,65 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     ctx.globalCompositeOperation = 'lighter';
 
     const particles = particlesRef.current;
-    // Cap particles for performance
-    if (particles.length > 1000) {
-      particles.splice(0, particles.length - 1000);
+    if (particles.length > 1200) {
+      particles.splice(0, particles.length - 1200);
     }
+
+    const friction = 0.985;
 
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       
-      // Update physics
-      p.vy -= 0.03; // Buoyancy / rising force
-      p.vx += (Math.random() - 0.5) * 0.1; // Slight air jitter
+      // 1. Damping (Friction)
+      p.vx *= friction;
+      p.vy *= friction;
+
+      // 2. Buoyancy vs Gravity
+      // Hot ash rises initially, then slows down/drifts
+      p.vy -= 0.045; 
+
+      // 3. Complex Multi-layered Turbulence
+      p.phase += p.freq;
+      // Primary wave
+      p.vx += Math.sin(p.phase) * 0.05;
+      // Secondary micro-jitter
+      p.vx += (Math.random() - 0.5) * 0.12;
+      // Subtle vertical wave
+      p.vy += Math.cos(p.phase * 0.5) * 0.02;
       
       p.x += p.vx;
       p.y += p.vy;
-      
-      // Wavy turbulence
-      p.phase += p.freq;
-      p.x += Math.sin(p.phase) * p.amp;
 
-      p.life -= 0.012 * (0.8 + Math.random() * 0.4);
+      p.life -= 0.01 + (Math.random() * 0.005);
       
-      if (p.life <= 0 || p.y < -50) {
+      if (p.life <= 0 || p.y < -100) {
         particles.splice(i, 1);
         continue;
       }
 
-      const alpha = p.life * (0.6 + Math.random() * 0.4); // Flickering
-      const drawSize = p.size * (0.8 + Math.sin(p.phase * 5) * 0.2); // Pulsing size
+      // Visual Refinement: Flickering and pulsing
+      const flicker = 0.7 + Math.random() * 0.3;
+      const pulse = 0.9 + Math.sin(p.phase * 4) * 0.1;
+      const alpha = p.life * flicker;
+      const drawSize = p.size * pulse;
 
       ctx.beginPath();
-      // Glow trail / body
-      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawSize * 3);
+      // External Glow (Smoke/Light bleed)
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawSize * 4);
       grad.addColorStop(0, p.color);
+      grad.addColorStop(0.3, p.color);
       grad.addColorStop(1, 'transparent');
       
       ctx.fillStyle = grad;
-      ctx.globalAlpha = alpha;
-      ctx.arc(p.x, p.y, drawSize * 3, 0, Math.PI * 2);
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.arc(p.x, p.y, drawSize * 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Sparkle core (ember)
+      // Bright Ember Core
       ctx.fillStyle = '#fff';
-      ctx.globalAlpha = alpha * 0.9;
+      ctx.globalAlpha = alpha * 0.95;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, drawSize * 0.7, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, drawSize * 0.6, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -187,7 +204,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
         const cy = hitY;
 
         const isJustStarted = note.startTime >= lastTimeRef.current && note.startTime < currentTime;
-        spawnParticles(cx, cy, note.track, isJustStarted);
+        spawnParticles(cx, cy, note.track, geom.w, isJustStarted);
       }
     });
 
