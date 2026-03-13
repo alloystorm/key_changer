@@ -27,11 +27,13 @@ const MAX_PARTICLES = 700;
 function flowField(x: number, y: number, t: number): [number, number] {
   const s = 0.003;
   const fx =
-    Math.sin(x * s * 1.7 + y * s * 0.6 + t * 0.8) * 48 +
-    Math.sin(x * s * 0.5 - y * s * 1.4 + t * 0.35) * 22;
+    Math.sin(x * s * 1.7 + y * s * 0.6 + t * 1.4) * 75 +
+    Math.sin(x * s * 0.5 - y * s * 1.4 + t * 0.7) * 38 +
+    Math.sin(x * s * 3.1 + y * s * 2.3 + t * 2.1) * 18;
   const fy =
-    Math.cos(x * s * 0.9 + y * s * 1.5 + t * 0.55) * 30 +
-    Math.cos(x * s * 1.3 - y * s * 0.4 + t * 0.9) * 14;
+    Math.cos(x * s * 0.9 + y * s * 1.5 + t * 1.1) * 55 +
+    Math.cos(x * s * 1.3 - y * s * 0.4 + t * 1.7) * 28 +
+    Math.cos(x * s * 2.7 - y * s * 1.8 + t * 2.5) * 14;
   return [fx, fy];
 }
 
@@ -83,7 +85,7 @@ function r(min: number, max: number) {
 
 function makeSpark(xLeft: number, xRight: number, y: number, ri: number, gi: number, bi: number): Particle {
   const angle = r(-Math.PI * 0.85, -Math.PI * 0.15);
-  const speed = r(140, 380);
+  const speed = r(240, 580);
   return {
     type: 'spark',
     x: r(xLeft, xRight),
@@ -91,7 +93,7 @@ function makeSpark(xLeft: number, xRight: number, y: number, ri: number, gi: num
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     age: 0,
-    lifetime: r(0.35, 0.70),
+    lifetime: r(0.12, 1.0),
     r: ri, g: gi, b: bi,
     size: r(1.0, 2.2),
     drag: r(0.6, 1.2),      // lower drag → travels further before stopping
@@ -110,12 +112,12 @@ function makeEmber(xLeft: number, xRight: number, y: number, ri: number, gi: num
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     age: 0,
-    lifetime: r(1.0, 1.9),
+    lifetime: r(0.4, 2.8),
     r: ri, g: gi, b: bi,
     size: r(2.0, 4.5),
     drag: r(0.3, 0.6),
     gravityScale: r(-0.45, -0.10), // buoyancy: hot embers rise
-    turbFactor: r(0.30, 0.60),
+    turbFactor: r(0.50, 0.90),
   };
 }
 
@@ -127,14 +129,14 @@ function makeSmoke(xLeft: number, xRight: number, y: number, ri: number, gi: num
     vx: r(-22, 22),
     vy: r(-45, -10),
     age: 0,
-    lifetime: r(1.5, 3.0),
+    lifetime: r(0.8, 4.5),
     r: Math.min(255, ri + 60),
     g: Math.min(255, gi + 55),
     b: Math.min(255, bi + 55),
     size: r(12, 28),
     drag: r(1.0, 1.8),
     gravityScale: r(-0.18, -0.04), // slight buoyancy, turbulence-dominated
-    turbFactor: r(0.45, 0.75),
+    turbFactor: r(0.70, 1.10),
   };
 }
 
@@ -167,7 +169,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     const room = MAX_PARTICLES - ps.length;
     if (room <= 0) return;
 
-    const nSparks = Math.min(Math.floor(r(4, 8)), room);
+    const nSparks = Math.min(Math.floor(r(4, 8)), room) * 5;
     for (let i = 0; i < nSparks; i++) ps.push(makeSpark(xLeft, xRight, cy, ri, gi, bi));
 
     const nEmbers = Math.min(Math.floor(r(5, 10)), room - nSparks);
