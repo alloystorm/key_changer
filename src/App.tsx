@@ -15,6 +15,7 @@ import { SheetMusicView } from './components/SheetMusicView';
 import { PianoKeyboardView } from './components/PianoKeyboardView';
 import { SongLibrary } from './components/SongLibrary';
 import { GlowOverlay } from './components/GlowOverlay';
+import { ParticleOverlay } from './components/ParticleOverlay';
 import './App.css';
 
 const FEATURED_PIECES = [
@@ -369,6 +370,13 @@ export default function App() {
             </div>
 
             <GlowOverlay 
+              notes={song.notes}
+              transpose={transpose}
+              currentTime={currentTime}
+              keyboardRef={keyboardContainerRef}
+            />
+
+            <ParticleOverlay
               notes={song.notes}
               transpose={transpose}
               currentTime={currentTime}
