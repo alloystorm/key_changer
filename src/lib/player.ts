@@ -44,6 +44,7 @@ export class Player {
   private transpose = 0;
   private bpm = 120;
   private playbackRate = 1.0;
+  private duration = 0;
 
   private startedAt = 0; // AudioContext.currentTime when play started
   private pausedAt = 0; // position in song (seconds) when paused
@@ -62,11 +63,12 @@ export class Player {
     this.onStatusChange(s);
   }
 
-  async load(notes: NoteEvent[], bpm: number, transpose: number): Promise<void> {
+  async load(notes: NoteEvent[], bpm: number, transpose: number, duration: number): Promise<void> {
     this.stop();
     this.notes = notes;
     this.bpm = bpm;
     this.transpose = transpose;
+    this.duration = duration;
 
     this.uniquePitches = new Set(
       notes.map((n) => Math.max(0, Math.min(127, n.pitch + transpose)))
@@ -244,7 +246,15 @@ export class Player {
   private startRaf(): void {
     const tick = () => {
       if (this.status === 'playing') {
-        this.onTimeUpdate(this.getCurrentTime());
+        const now = this.getCurrentTime();
+        this.onTimeUpdate(now);
+
+        // Auto-stop at end of song (with 0.5s padding)
+        if (now >= this.duration + 0.5) {
+          this.stop();
+          return;
+        }
+
         this.rafId = requestAnimationFrame(tick);
       }
     };

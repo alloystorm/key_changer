@@ -62,7 +62,7 @@ export default function App() {
     setViewMode('pianoroll');
     applyFingerHints(loaded.notes, 0);
 
-    await player.load(loaded.notes, loaded.bpm, 0);
+    await player.load(loaded.notes, loaded.bpm, 0, loaded.totalDuration);
 
     // Cache the song if it's not already from the library
     if (shouldCache) {
