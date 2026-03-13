@@ -53,6 +53,48 @@ export default function App() {
     };
   }, []);
 
+  // Screen Wake Lock logic
+  const wakeLockRef = useRef<any>(null);
+
+  const requestWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      console.log('Wake Lock acquired');
+      wakeLockRef.current.addEventListener('release', () => {
+        console.log('Wake Lock released');
+      });
+    } catch (err) {
+      console.error(`${(err as Error).name}, ${(err as Error).message}`);
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) {
+      await wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (playerStatus === 'playing') {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+  }, [playerStatus, requestWakeLock, releaseWakeLock]);
+
+  // Re-acquire wake lock on visibility change if playing
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (wakeLockRef.current !== null && document.visibilityState === 'visible' && playerStatus === 'playing') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [playerStatus, requestWakeLock]);
+
   const handleSongLoaded = useCallback(async (loaded: ParsedSong, shouldCache = true) => {
     setFileLoading(false);
     setError(null);
