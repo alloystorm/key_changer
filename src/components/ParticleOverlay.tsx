@@ -14,7 +14,7 @@ import './ParticleOverlay.css';
 
 // ── Physics constants ─────────────────────────────────────────────────────────
 /** Downward gravitational acceleration in px/s² */
-const GRAVITY = 180;
+const GRAVITY = 65;
 const MAX_PARTICLES = 700;
 
 /**
@@ -76,59 +76,65 @@ function r(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-function makeSpark(x: number, y: number, ri: number, gi: number, bi: number): Particle {
+/**
+ * All spawn functions now take (xLeft, xRight) so particles spread across the
+ * full key width instead of emanating from a single centre point.
+ */
+
+function makeSpark(xLeft: number, xRight: number, y: number, ri: number, gi: number, bi: number): Particle {
   const angle = r(-Math.PI * 0.85, -Math.PI * 0.15);
-  const speed = r(130, 360);
+  const speed = r(140, 380);
   return {
     type: 'spark',
-    x, y,
-    vx: Math.cos(angle) * speed + r(-25, 25),
-    vy: Math.sin(angle) * speed,
-    age: 0,
-    lifetime: r(0.30, 0.65),
-    r: ri, g: gi, b: bi,
-    size: r(1.0, 2.2),
-    drag: r(1.8, 3.0),
-    gravityScale: r(0.75, 1.25),
-    turbFactor: r(0.02, 0.08),
-  };
-}
-
-function makeEmber(x: number, y: number, ri: number, gi: number, bi: number): Particle {
-  const angle = r(-Math.PI * 0.78, -Math.PI * 0.22);
-  const speed = r(35, 120);
-  return {
-    type: 'ember',
-    x: x + r(-7, 7),
+    x: r(xLeft, xRight),
     y,
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     age: 0,
-    lifetime: r(0.85, 1.7),
+    lifetime: r(0.35, 0.70),
     r: ri, g: gi, b: bi,
-    size: r(2.0, 4.5),
-    drag: r(0.8, 1.4),
-    gravityScale: r(0.12, 0.32),
-    turbFactor: r(0.25, 0.55),
+    size: r(1.0, 2.2),
+    drag: r(0.6, 1.2),      // lower drag → travels further before stopping
+    gravityScale: r(0.8, 1.2),
+    turbFactor: r(0.02, 0.08),
   };
 }
 
-function makeSmoke(x: number, y: number, ri: number, gi: number, bi: number): Particle {
+function makeEmber(xLeft: number, xRight: number, y: number, ri: number, gi: number, bi: number): Particle {
+  const angle = r(-Math.PI * 0.82, -Math.PI * 0.18);
+  const speed = r(30, 110);
+  return {
+    type: 'ember',
+    x: r(xLeft, xRight),
+    y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    age: 0,
+    lifetime: r(1.0, 1.9),
+    r: ri, g: gi, b: bi,
+    size: r(2.0, 4.5),
+    drag: r(0.3, 0.6),
+    gravityScale: r(-0.45, -0.10), // buoyancy: hot embers rise
+    turbFactor: r(0.30, 0.60),
+  };
+}
+
+function makeSmoke(xLeft: number, xRight: number, y: number, ri: number, gi: number, bi: number): Particle {
   return {
     type: 'smoke',
-    x: x + r(-12, 12),
+    x: r(xLeft, xRight),
     y,
-    vx: r(-20, 20),
-    vy: r(-40, -12),
+    vx: r(-22, 22),
+    vy: r(-45, -10),
     age: 0,
-    lifetime: r(1.3, 2.6),
+    lifetime: r(1.5, 3.0),
     r: Math.min(255, ri + 60),
     g: Math.min(255, gi + 55),
     b: Math.min(255, bi + 55),
-    size: r(10, 26),
-    drag: r(2.8, 4.5),
-    gravityScale: r(-0.06, 0.06), // near-neutral — slight buoyancy variation
-    turbFactor: r(0.4, 0.7),
+    size: r(12, 28),
+    drag: r(1.0, 1.8),
+    gravityScale: r(-0.18, -0.04), // slight buoyancy, turbulence-dominated
+    turbFactor: r(0.45, 0.75),
   };
 }
 
@@ -153,7 +159,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
   const simTime      = useRef(0);
 
   // ── Spawn helpers ───────────────────────────────────────────────────────────
-  const burst = useCallback((cx: number, cy: number, track: number) => {
+  const burst = useCallback((xLeft: number, xRight: number, cy: number, track: number) => {
     const hex = NOTE_COLORS[track % NOTE_COLORS.length];
     const { r: ri, g: gi, b: bi } = hexToRgb(hex);
     const ps = particlesRef.current;
@@ -162,21 +168,21 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     if (room <= 0) return;
 
     const nSparks = Math.min(Math.floor(r(4, 8)), room);
-    for (let i = 0; i < nSparks; i++) ps.push(makeSpark(cx, cy, ri, gi, bi));
+    for (let i = 0; i < nSparks; i++) ps.push(makeSpark(xLeft, xRight, cy, ri, gi, bi));
 
     const nEmbers = Math.min(Math.floor(r(5, 10)), room - nSparks);
-    for (let i = 0; i < nEmbers; i++) ps.push(makeEmber(cx, cy, ri, gi, bi));
+    for (let i = 0; i < nEmbers; i++) ps.push(makeEmber(xLeft, xRight, cy, ri, gi, bi));
 
     const nSmoke = Math.min(Math.floor(r(2, 4)), room - nSparks - nEmbers);
-    for (let i = 0; i < nSmoke; i++) ps.push(makeSmoke(cx, cy, ri, gi, bi));
+    for (let i = 0; i < nSmoke; i++) ps.push(makeSmoke(xLeft, xRight, cy, ri, gi, bi));
   }, []);
 
-  const trickle = useCallback((cx: number, cy: number, track: number) => {
+  const trickle = useCallback((xLeft: number, xRight: number, cy: number, track: number) => {
     if (particlesRef.current.length >= MAX_PARTICLES) return;
     const hex = NOTE_COLORS[track % NOTE_COLORS.length];
     const { r: ri, g: gi, b: bi } = hexToRgb(hex);
-    if (Math.random() < 0.35) particlesRef.current.push(makeEmber(cx, cy, ri, gi, bi));
-    if (Math.random() < 0.08) particlesRef.current.push(makeSmoke(cx, cy, ri, gi, bi));
+    if (Math.random() < 0.35) particlesRef.current.push(makeEmber(xLeft, xRight, cy, ri, gi, bi));
+    if (Math.random() < 0.08) particlesRef.current.push(makeSmoke(xLeft, xRight, cy, ri, gi, bi));
   }, []);
 
   // ── Physics + render ────────────────────────────────────────────────────────
@@ -340,14 +346,15 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
       const geom  = keyGeom.get(pitch);
       if (!geom) return;
 
-      const cx = hitX + SIDEBAR_WIDTH + geom.x + geom.w / 2;
+      const xLeft  = hitX + SIDEBAR_WIDTH + geom.x;
+      const xRight = xLeft + geom.w;
       const cy = hitY;
 
       const isJustStarted = note.startTime >= lastTimeRef.current && note.startTime < currentTime;
       if (isJustStarted) {
-        burst(cx, cy, note.track);
+        burst(xLeft, xRight, cy, note.track);
       } else {
-        trickle(cx, cy, note.track);
+        trickle(xLeft, xRight, cy, note.track);
       }
     });
 
