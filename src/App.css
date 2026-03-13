@@ -151,18 +151,18 @@ html, body, #root {
 
 /* ── Mode-specific layout ratios ── */
 
+/* Keyboard panel: height scales with width to keep natural key proportions */
+.view-layer--keyboard { flex: none; width: 100%; aspect-ratio: 52 / 6; max-height: 160px; }
+
 /* Sheet Mode: Sheet (80%), Keyboard (20%) */
 .view-area--sheet .view-layer--sheet { flex: 4; }
-.view-area--sheet .view-layer--keyboard { flex: 1; }
 
 /* Bar Mode: Bar (80%), Keyboard (20%) */
 .view-area--pianoroll .view-layer--roll { flex: 4; }
-.view-area--pianoroll .view-layer--keyboard { flex: 1; }
 
 /* Both Mode: Sheet (40%), Bar (40%), Keyboard (20%) */
 .view-area--both .view-layer--sheet { flex: 2; }
 .view-area--both .view-layer--roll { flex: 2; }
-.view-area--both .view-layer--keyboard { flex: 1; }
 
 /* ── Error banner ────────────────────────────────────────────── */
 .error-banner {
