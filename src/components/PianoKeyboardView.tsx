@@ -103,12 +103,12 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     const previewAlphas = new Map<number, number>(); // pitch -> alpha (0-0.5)
     const previewTracks = new Map<number, number>(); // pitch -> track index
 
-    const PREVIEW_WINDOW = 1.0; // seconds
+    const PREVIEW_WINDOW = 3.0; // seconds
 
     notes.forEach((note) => {
       const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
       const isCurrentlyActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
-      
+
       if (isCurrentlyActive) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
