@@ -14,6 +14,7 @@ import { PianoRollView } from './components/PianoRollView';
 import { SheetMusicView } from './components/SheetMusicView';
 import { PianoKeyboardView } from './components/PianoKeyboardView';
 import { SongLibrary } from './components/SongLibrary';
+import { GlowOverlay } from './components/GlowOverlay';
 import './App.css';
 
 const FEATURED_PIECES = [
@@ -165,6 +166,8 @@ export default function App() {
     }
   }, [handleSongLoaded, handleFileError]);
 
+  const keyboardContainerRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -314,7 +317,7 @@ export default function App() {
               </>
             )}
 
-            <div className="view-layer view-layer--keyboard">
+            <div ref={keyboardContainerRef} className="view-layer view-layer--keyboard">
               <PianoKeyboardView
                 notes={song.notes}
                 transpose={transpose}
@@ -322,6 +325,13 @@ export default function App() {
                 showFingers={rollSettings.showFingers}
               />
             </div>
+
+            <GlowOverlay 
+              notes={song.notes}
+              transpose={transpose}
+              currentTime={currentTime}
+              keyboardRef={keyboardContainerRef}
+            />
           </div>
         </main>
       )}

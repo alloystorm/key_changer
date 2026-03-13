@@ -141,6 +141,12 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative; /* for absolute overlays */
+}
+
+/* Position GlowOverlay absolutely to cover the entire view area */
+.view-area .glow-overlay {
+  inset: 0;
 }
 
 .view-layer {
@@ -152,7 +158,12 @@ html, body, #root {
 /* ── Mode-specific layout ratios ── */
 
 /* Keyboard panel: height scales with width to keep natural key proportions */
-.view-layer--keyboard { flex: none; width: 100%; aspect-ratio: 52 / 6; max-height: 160px; }
+.view-layer--keyboard { 
+  flex: none; 
+  width: 100%; 
+  aspect-ratio: 52 / 6; 
+  height: clamp(80px, 18vh, 160px); 
+}
 
 /* Sheet Mode: Sheet (80%), Keyboard (20%) */
 .view-area--sheet .view-layer--sheet { flex: 4; }

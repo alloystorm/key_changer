@@ -1,66 +1,20 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { NoteEvent, RollSettings } from '../lib/types';
+import { 
+  SIDEBAR_WIDTH, 
+  MIDI_LOW, 
+  MIDI_HIGH, 
+  NOTE_COLORS, 
+  isBlack, 
+  buildKeyGeometry, 
+  shadeColor,
+  triggerFrac,
+  type KeyGeom
+} from '../lib/layout';
 
 import './PianoRollView.css';
 
-// ─── Layout constants ────────────────────────────────────────────────────────
-const SIDEBAR_WIDTH = 36;       // left pitch-label sidebar
-const MIDI_LOW = 21;           // A0
-const MIDI_HIGH = 108;          // C8
 const VISIBLE_SECONDS = 4;      // seconds of music visible in the roll at once
-
-const NOTE_COLORS = [
-  '#7c6af7', '#f77c6a', '#6af7b8', '#f7e96a',
-  '#6ab4f7', '#f76ac8', '#aef76a',
-];
-
-// Black-key MIDI semitone offsets within an octave
-const BLACK_OFFSETS = new Set([1, 3, 6, 8, 10]);
-
-function isBlack(midi: number) {
-  return BLACK_OFFSETS.has(midi % 12);
-}
-
-// ── Per-key geometry: x position and width aligned to the keyboard ───────────
-interface KeyGeom {
-  x: number;       // left edge relative to roll area (excludes sidebar)
-  w: number;       // width in pixels
-  isBlack: boolean;
-}
-
-function buildKeyGeometry(rollWidth: number): Map<number, KeyGeom> {
-  const whites: number[] = [];
-  for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
-    if (!isBlack(m)) whites.push(m);
-  }
-  const wkW = rollWidth / whites.length;
-  const bkW = wkW * 0.60;
-
-  const map = new Map<number, KeyGeom>();
-  whites.forEach((midi, i) => {
-    map.set(midi, { x: i * wkW, w: wkW - 1, isBlack: false });
-  });
-  whites.forEach((midi, i) => {
-    const nb = midi + 1;
-    if (isBlack(nb) && nb <= MIDI_HIGH) {
-      const cx = (i + 1) * wkW;
-      map.set(nb, { x: cx - bkW / 2, w: bkW, isBlack: true });
-    }
-  });
-  return map;
-}
-
-function triggerFrac(pos: RollSettings['triggerPosition']): number {
-  return pos === 'bottom' ? 1.0 : pos === 'middle' ? 0.5 : 0.15;
-}
-
-function shadeColor(hex: string, amount: number): string {
-  const num = parseInt(hex.slice(1), 16);
-  const r = Math.max(0, Math.min(255, (num >> 16) + amount));
-  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + amount));
-  const b = Math.max(0, Math.min(255, (num & 0xff) + amount));
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-}
 
 /**
  * Draws a miniature music-notation duration symbol centred at (cx, cy).
