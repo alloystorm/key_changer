@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
 import { computeAllFingerHints } from './lib/fingering';
 import type { FingerHint } from './lib/fingering';
@@ -32,6 +32,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
+  const [fingerHints, setFingerHints] = useState<Map<string, FingerHint>>(new Map());
   const [rollSettings, setRollSettings] = useState<RollSettings>({
     flowDirection: 'down',
     triggerPosition: 'bottom',
@@ -41,12 +42,6 @@ export default function App() {
   const handleRollSettingsChange = useCallback((patch: Partial<RollSettings>) => {
     setRollSettings((prev) => ({ ...prev, ...patch }));
   }, []);
-
-  // Compute finger hints for the whole song once; recompute on transpose or toggle.
-  const fingerHints = useMemo<Map<string, FingerHint>>(() => {
-    if (!song || !rollSettings.showFingers) return new Map();
-    return computeAllFingerHints(song.notes, transpose);
-  }, [song, transpose, rollSettings.showFingers]);
 
   // Wire player callbacks on mount
   useEffect(() => {
@@ -65,6 +60,7 @@ export default function App() {
     transposeRef.current = 0;
     setCurrentTime(0);
     setViewMode('pianoroll');
+    setFingerHints(computeAllFingerHints(loaded.notes, 0));
 
     await player.load(loaded.notes, loaded.bpm, 0);
 
@@ -125,6 +121,7 @@ export default function App() {
   const handleChangeFile = useCallback(() => {
     player.stop();
     setSong(null);
+    setFingerHints(new Map());
     setCurrentTime(0);
     setTranspose(0);
     transposeRef.current = 0;
