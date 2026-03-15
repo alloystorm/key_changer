@@ -230,8 +230,8 @@ export default function App() {
   }, [song]);
 
   // Rolling window: how far ahead/behind currentTime to scan when computing pitch range
-  const RANGE_LOOKAHEAD = 16;   // seconds
-  const RANGE_LOOKBACK  = 8;   // seconds
+  const RANGE_LOOKAHEAD = 6;   // seconds
+  const RANGE_LOOKBACK  = 1;   // seconds
   const RANGE_PAD       = 2;   // semitone padding either side
 
   // Compute pitch range from notes in the rolling window around currentTime.
@@ -268,6 +268,8 @@ export default function App() {
 
   // Compute visible key range: trims to song range on narrow screens,
   // and pans to follow active notes when even the song range is too wide.
+  // windowCenterRef is smoothed in the rAF loop (fps-independent); read-only in useMemo.
+  const windowCenterTargetRef = useRef(60); // raw centroid target written by useMemo
   const keyRange = useMemo(() => {
     if (!song || !songRange || keyboardWidth === 0) return { low: MIDI_LOW, high: MIDI_HIGH };
     const rollWidth = Math.max(1, keyboardWidth - SIDEBAR_WIDTH);
@@ -296,12 +298,9 @@ export default function App() {
         count++;
       }
     }
-    if (count > 0) {
-      const target = sum / count;
-      windowCenterRef.current += (target - windowCenterRef.current) * 0.04;
-    }
+    if (count > 0) windowCenterTargetRef.current = sum / count;
 
-    // Derive a key window centred on the smoothed MIDI centroid
+    // Derive a key window centred on the smoothed MIDI centroid (read-only here)
     const center = Math.round(windowCenterRef.current);
     const semitonesNeeded = Math.ceil((maxWhites / 7) * 12);
     let low = Math.max(MIDI_LOW, center - Math.floor(semitonesNeeded / 2));
@@ -321,35 +320,75 @@ export default function App() {
   // animation. A persistent rAF loop lerps toward `keyRangeTargetRef` every frame.
   // Using a ref for the target avoids restarting the loop on every keyRange change.
   const keyRangeTargetRef = useRef(keyRange);
-  keyRangeTargetRef.current = keyRange; // update synchronously every render
+  keyRangeTargetRef.current = keyRange; // updated synchronously every render
 
   const animRangeRef = useRef<{ low: number; high: number }>({ low: MIDI_LOW, high: MIDI_HIGH });
   const [animKeyRange, setAnimKeyRange] = useState<{ low: number; high: number }>(
     { low: MIDI_LOW, high: MIDI_HIGH }
   );
 
+  // Animation speed — semitones per second. Increase for snappier pan/zoom.
+  const ANIM_KEYS_PER_SEC = 6;
+  // Stability buffer: target must hold for this many frames before we commit to it.
+  // Absorbs ±1 flips caused by rolling-window boundary notes crossing currentTime.
+  const STABLE_FRAMES = 4;
+  const pendingTargetRef = useRef(keyRange);
+  const pendingFramesRef = useRef(0);
+  const committedTargetRef = useRef(keyRange);
+
   useEffect(() => {
     let rafId: number;
-    const step = () => {
-      const target = keyRangeTargetRef.current;
-      const { low, high } = animRangeRef.current;
-      // Snap immediately on large jumps (e.g. new song load)
-      const bigJump =
-        Math.abs(target.low - low) > 24 || Math.abs(target.high - high) > 24;
-      const LERP = bigJump ? 1 : 0.01;
-      const newLow  = low  + Math.max(Math.min((target.low  - low)  * LERP, 0.01), -0.01);
-      const newHigh = high + Math.max(Math.min((target.high - high) * LERP, 0.01), -0.01);
-      const settled = false;
-        // Math.abs(newLow  - target.low)  < 0.04 &&
-        // Math.abs(newHigh - target.high) < 0.04;
-      const finalLow  = settled ? target.low  : newLow;
-      const finalHigh = settled ? target.high : newHigh;
-      if (finalLow !== animRangeRef.current.low || finalHigh !== animRangeRef.current.high) {
-        animRangeRef.current = { low: finalLow, high: finalHigh };
-        setAnimKeyRange({ low: finalLow, high: finalHigh });
+    let lastTs: number | null = null;
+
+    const step = (ts: number) => {
+      // Delta time in seconds; cap at 100 ms to survive tab-switch pauses
+      const dt = lastTs !== null ? Math.min((ts - lastTs) / 1000, 0.1) : 0;
+      lastTs = ts;
+
+      // ── Smooth windowed-mode centroid fps-independently (8 st/sec) ──────
+      const cwTarget = windowCenterTargetRef.current;
+      const cwCur    = windowCenterRef.current;
+      const cwDelta  = cwTarget - cwCur;
+      const cwMove   = Math.min(Math.abs(cwDelta), 8 * dt);
+      if (cwMove > 0) windowCenterRef.current = cwCur + Math.sign(cwDelta) * cwMove;
+
+      // ── Stability buffer: ignore single-frame target oscillations ────────
+      const latest = keyRangeTargetRef.current;
+      if (latest.low === pendingTargetRef.current.low &&
+          latest.high === pendingTargetRef.current.high) {
+        pendingFramesRef.current++;
+        if (pendingFramesRef.current >= STABLE_FRAMES) committedTargetRef.current = latest;
+      } else {
+        pendingTargetRef.current = { low: latest.low, high: latest.high };
+        pendingFramesRef.current = 1;
       }
+
+      const target = committedTargetRef.current;
+      const { low, high } = animRangeRef.current;
+
+      // ── Instant snap on large jumps (new song / transpose ±octave) ───────
+      if (Math.abs(target.low - low) > 20 || Math.abs(target.high - high) > 20) {
+        animRangeRef.current = { low: target.low, high: target.high };
+        setAnimKeyRange({ low: target.low, high: target.high });
+        rafId = requestAnimationFrame(step);
+        return;
+      }
+
+      // ── Constant-speed linear movement (fps-independent) ─────────────────
+      const maxMove = ANIM_KEYS_PER_SEC * dt;
+      const dLow    = target.low  - low;
+      const dHigh   = target.high - high;
+      const newLow  = Math.abs(dLow)  <= maxMove ? target.low  : low  + Math.sign(dLow)  * maxMove;
+      const newHigh = Math.abs(dHigh) <= maxMove ? target.high : high + Math.sign(dHigh) * maxMove;
+
+      if (newLow !== animRangeRef.current.low || newHigh !== animRangeRef.current.high) {
+        animRangeRef.current = { low: newLow, high: newHigh };
+        setAnimKeyRange({ low: newLow, high: newHigh });
+      }
+
       rafId = requestAnimationFrame(step);
     };
+
     rafId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafId);
   }, []);
