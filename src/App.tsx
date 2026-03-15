@@ -337,11 +337,11 @@ export default function App() {
       const bigJump =
         Math.abs(target.low - low) > 24 || Math.abs(target.high - high) > 24;
       const LERP = bigJump ? 1 : 0.01;
-      const newLow  = low  + Math.min(0.01, (target.low  - low)  * LERP);
-      const newHigh = high + Math.min(0.01, (target.high - high) * LERP);
-      const settled =
-        Math.abs(newLow  - target.low)  < 0.04 &&
-        Math.abs(newHigh - target.high) < 0.04;
+      const newLow  = low  + Math.max(Math.min((target.low  - low)  * LERP, 0.01), -0.01);
+      const newHigh = high + Math.max(Math.min((target.high - high) * LERP, 0.01), -0.01);
+      const settled = false;
+        // Math.abs(newLow  - target.low)  < 0.04 &&
+        // Math.abs(newHigh - target.high) < 0.04;
       const finalLow  = settled ? target.low  : newLow;
       const finalHigh = settled ? target.high : newHigh;
       if (finalLow !== animRangeRef.current.low || finalHigh !== animRangeRef.current.high) {
@@ -509,7 +509,7 @@ export default function App() {
                   bpm={song.bpm}
                   settings={rollSettings}
                   onSeek={handleSeek}
-                  keyRange={viewKeyRange}
+                  keyRange={animKeyRange}
                 />
               </div>
             )}
@@ -536,7 +536,7 @@ export default function App() {
                     bpm={song.bpm}
                     settings={rollSettings}
                     onSeek={handleSeek}
-                    keyRange={viewKeyRange}
+                    keyRange={animKeyRange}
                   />
                 </div>
               </>

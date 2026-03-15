@@ -107,47 +107,71 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     const rollWidth = width - SIDEBAR_WIDTH;
     const rollHeight = height;
 
-    // Rebuild key geometry when width or range changes
+    // Integer-expanded range for geometry; float edges handled by transform below
+    const iLow  = Math.floor(rangeLow);
+    const iHigh = Math.ceil(rangeHigh);
+
+    // Rebuild key geometry when width or integer range changes
     const existingWkW = keyGeomRef.current.size > 0
-      ? (keyGeomRef.current.get(!isBlack(rangeLow) ? rangeLow : rangeLow + 1)?.w ?? 0) + 1
+      ? (keyGeomRef.current.get(!isBlack(iLow) ? iLow : iLow + 1)?.w ?? 0) + 1
       : 0;
-    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(rangeLow, rangeHigh));
+    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(iLow, iHigh));
     if (
       Math.abs(existingWkW - expectedWkW) > 0.5 ||
-      rangeRef.current.low !== rangeLow ||
-      rangeRef.current.high !== rangeHigh
+      rangeRef.current.low !== iLow ||
+      rangeRef.current.high !== iHigh
     ) {
-      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, rangeLow, rangeHigh);
-      rangeRef.current = { low: rangeLow, high: rangeHigh };
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, iLow, iHigh);
+      rangeRef.current = { low: iLow, high: iHigh };
     }
     const keyGeom = keyGeomRef.current;
 
+    // ── Sub-pixel pan/zoom transform ─────────────────────────────────────
+    // Map float [rangeLow, rangeHigh] → full rollWidth, same as PianoKeyboardView.
+    const span     = Math.max(1, iHigh - iLow);
+    const fracLow  = (rangeLow  - iLow) / span;
+    const fracHigh = (rangeHigh - iLow) / span;
+    const visFrac  = Math.max(0.001, fracHigh - fracLow);
+    const scaleX   = 1 / visFrac;
+    const transX   = -fracLow * rollWidth * scaleX;
+
     // ── Background ────────────────────────────────────────────────────────
     ctx.fillStyle = '#111';
-    ctx.fillRect(SIDEBAR_WIDTH, 0, rollWidth, rollHeight);
+    ctx.fillRect(0, 0, width, rollHeight);
+
+    // Clip to roll area, then apply zoom+pan transform
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(SIDEBAR_WIDTH, 0, rollWidth, rollHeight);
+    ctx.clip();
+    ctx.translate(SIDEBAR_WIDTH + transX, 0);
+    ctx.scale(scaleX, 1);
 
     // ── Lane shading for black key columns ────────────────────────────────
-    keyGeom.forEach((geom, midi) => {
+    keyGeom.forEach((geom) => {
       if (geom.isBlack) {
         ctx.fillStyle = 'rgba(0,0,0,0.32)';
-        ctx.fillRect(SIDEBAR_WIDTH + geom.x, 0, geom.w, rollHeight);
+        ctx.fillRect(geom.x, 0, geom.w, rollHeight);
       }
     });
 
     // Octave divider lines
-    for (let m = rangeLow; m <= rangeHigh; m++) {
+    for (let m = iLow; m <= iHigh; m++) {
       if (m % 12 === 0 && keyGeom.has(m)) {
         const geom = keyGeom.get(m)!;
         ctx.strokeStyle = '#2a2a2a';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 / scaleX;
         ctx.beginPath();
-        ctx.moveTo(SIDEBAR_WIDTH + geom.x, 0);
-        ctx.lineTo(SIDEBAR_WIDTH + geom.x, rollHeight);
+        ctx.moveTo(geom.x, 0);
+        ctx.lineTo(geom.x, rollHeight);
         ctx.stroke();
       }
     }
 
     // ── Play line & scaling ───────────────────────────────────────────────
+    // (computed outside transform; restore first, draw line, re-save)
+    ctx.restore();
+
     const frac = triggerFrac(triggerPosition);
     const playLineY = flowDirection === 'down'
       ? rollHeight * frac
@@ -156,7 +180,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     const travelPx = flowDirection === 'down' ? playLineY : rollHeight - playLineY;
     const pxPerSecond = travelPx / VISIBLE_SECONDS;
 
-    // Draw play-line only when not flush with keyboard edge
     if (triggerPosition !== 'bottom') {
       ctx.save();
       ctx.strokeStyle = 'rgba(255,255,255,0.45)';
@@ -170,17 +193,15 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
       ctx.restore();
     }
 
-    // ── Measure lines (horizontal) ────────────────────────────────────────
+    // ── Measure lines ─────────────────────────────────────────────────────
     if (bpm > 0) {
-      const secondsPerMeasure = (60 / bpm) * 4; // assume 4/4
-
-      // Visible time range (time at y=0 and y=rollHeight)
+      const secondsPerMeasure = (60 / bpm) * 4;
       let tAtTop: number, tAtBottom: number;
       if (flowDirection === 'down') {
-        tAtTop = currentTime + playLineY / pxPerSecond;
+        tAtTop    = currentTime + playLineY / pxPerSecond;
         tAtBottom = currentTime - (rollHeight - playLineY) / pxPerSecond;
       } else {
-        tAtTop = currentTime - playLineY / pxPerSecond;
+        tAtTop    = currentTime - playLineY / pxPerSecond;
         tAtBottom = currentTime + (rollHeight - playLineY) / pxPerSecond;
       }
       const tMin = Math.min(tAtTop, tAtBottom) - secondsPerMeasure;
@@ -194,7 +215,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
           ? playLineY - (t - currentTime) * pxPerSecond
           : playLineY + (t - currentTime) * pxPerSecond;
         if (y < 0 || y > rollHeight) continue;
-
         ctx.strokeStyle = 'rgba(255,255,255,0.15)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -208,11 +228,11 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     // ── Active key tracking ───────────────────────────────────────────────
     const activeKeys = new Set<number>();
     const activeTracks = new Map<number, number>();
-    const activeHintKey = new Map<number, string>(); // pitch → hint map key for current moment
+    const activeHintKey = new Map<number, string>();
 
     notes.forEach((note) => {
       const pitch = note.pitch + transpose;
-      if (pitch < rangeLow || pitch > rangeHigh) return;
+      if (pitch < iLow || pitch > iHigh) return;
       if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
@@ -220,10 +240,18 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
       }
     });
 
+    // Re-apply transform for note drawing
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(SIDEBAR_WIDTH, 0, rollWidth, rollHeight);
+    ctx.clip();
+    ctx.translate(SIDEBAR_WIDTH + transX, 0);
+    ctx.scale(scaleX, 1);
+
     // ── Draw notes (white pass, then black on top) ────────────────────────
     const drawNote = (note: NoteEvent, blackPass: boolean) => {
       const pitch = note.pitch + transpose;
-      if (pitch < rangeLow || pitch > rangeHigh) return;
+      if (pitch < iLow || pitch > iHigh) return;
       const geom = keyGeom.get(pitch);
       if (!geom || geom.isBlack !== blackPass) return;
 
@@ -232,19 +260,19 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
       let yTop: number, yBottom: number;
       if (flowDirection === 'down') {
-        yTop = playLineY - secEnd * pxPerSecond;
+        yTop    = playLineY - secEnd     * pxPerSecond;
         yBottom = playLineY - secFromNow * pxPerSecond;
       } else {
         const a = playLineY + secFromNow * pxPerSecond;
-        const b = playLineY + secEnd * pxPerSecond;
-        yTop = Math.min(a, b);
+        const b = playLineY + secEnd     * pxPerSecond;
+        yTop    = Math.min(a, b);
         yBottom = Math.max(a, b);
       }
 
       const noteH = Math.max(yBottom - yTop, 3);
       if (yBottom < 0 || yTop > rollHeight) return;
 
-      const x = SIDEBAR_WIDTH + geom.x;
+      const x = geom.x;
       const w = geom.w;
       const color = NOTE_COLORS[note.track % NOTE_COLORS.length];
 
@@ -257,7 +285,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
       ctx.roundRect(x, yTop, w, noteH, radius);
       ctx.fill();
 
-      // Leading-edge bright cap for active notes
       const isActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
       if (isActive) {
         ctx.fillStyle = '#fff';
@@ -266,35 +293,37 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
         ctx.fillRect(x, capY, w, 2);
       }
 
-      // Pre-compute finger hint so we can give it priority over the duration symbol
       const fingerHint = showFingers ? note.finger : undefined;
 
-      // Duration symbol — omitted when a finger hint will be shown (finger wins)
-      // and also omitted when showFingers is off (user request: only show when finger numbers are visible)
       if (showFingers && noteH >= 22 && w >= 10 && !fingerHint) {
         const beats = note.duration * (bpm / 60);
         const sz = Math.min(w * 0.3, 4.0);
-        // Position cy in lower 65% so the stem (going up 3×sz) stays inside the bar
         const cy = yTop + noteH * 0.65;
-        const cx = x + w / 2 - sz * 0.3; // shift left so head+stem centred visually
+        const cx = x + w / 2 - sz * 0.3;
         ctx.globalAlpha = 0.75;
-        drawDurationSymbol(ctx, cx, cy, sz, geom.isBlack ? '#fff' : '#111', beats);
+        // Un-scale horizontally so the symbol isn't squashed during zoom
+        ctx.save();
+        ctx.scale(1 / scaleX, 1);
+        drawDurationSymbol(ctx, cx * scaleX, cy, sz, geom.isBlack ? '#fff' : '#111', beats);
+        ctx.restore();
       }
 
-      // Finger label at leading edge of bar (bottom for flow=down, top for flow=up)
       if (fingerHint && noteH >= 8 && w >= 8) {
         ctx.globalAlpha = 1;
         const fontSize = Math.min(w * 0.65, 13);
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = geom.isBlack ? '#fff' : '#111';
+        ctx.save();
+        ctx.scale(1 / scaleX, 1);
         if (flowDirection === 'down') {
           ctx.textBaseline = 'bottom';
-          ctx.fillText(String(fingerHint), x + w / 2, yBottom - 2);
+          ctx.fillText(String(fingerHint), (x + w / 2) * scaleX, yBottom - 2);
         } else {
           ctx.textBaseline = 'top';
-          ctx.fillText(String(fingerHint), x + w / 2, yTop + 2);
+          ctx.fillText(String(fingerHint), (x + w / 2) * scaleX, yTop + 2);
         }
+        ctx.restore();
       }
 
       ctx.globalAlpha = 1;
@@ -302,6 +331,8 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
     notes.forEach((n) => drawNote(n, false));
     notes.forEach((n) => drawNote(n, true));
+
+    ctx.restore(); // undo note-drawing clip+transform
 
   }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, rangeLow, rangeHigh]);
 
