@@ -316,6 +316,61 @@ export default function App() {
     return { low, high };
   }, [song, songRange, keyboardWidth, currentTime, transpose]);
 
+  // ─── Smooth animation of the visible key range ──────────────────────────────
+  // `animKeyRange` lags behind the discrete `keyRange` target, giving a zoom+pan
+  // animation. A persistent rAF loop lerps toward `keyRangeTargetRef` every frame.
+  // Using a ref for the target avoids restarting the loop on every keyRange change.
+  const keyRangeTargetRef = useRef(keyRange);
+  keyRangeTargetRef.current = keyRange; // update synchronously every render
+
+  const animRangeRef = useRef<{ low: number; high: number }>({ low: MIDI_LOW, high: MIDI_HIGH });
+  const [animKeyRange, setAnimKeyRange] = useState<{ low: number; high: number }>(
+    { low: MIDI_LOW, high: MIDI_HIGH }
+  );
+
+  useEffect(() => {
+    let rafId: number;
+    const step = () => {
+      const target = keyRangeTargetRef.current;
+      const { low, high } = animRangeRef.current;
+      // Snap immediately on large jumps (e.g. new song load)
+      const bigJump =
+        Math.abs(target.low - low) > 24 || Math.abs(target.high - high) > 24;
+      const LERP = bigJump ? 1 : 0.09;
+      const newLow  = low  + (target.low  - low)  * LERP;
+      const newHigh = high + (target.high - high) * LERP;
+      const settled =
+        Math.abs(newLow  - target.low)  < 0.04 &&
+        Math.abs(newHigh - target.high) < 0.04;
+      const finalLow  = settled ? target.low  : newLow;
+      const finalHigh = settled ? target.high : newHigh;
+      if (finalLow !== animRangeRef.current.low || finalHigh !== animRangeRef.current.high) {
+        animRangeRef.current = { low: finalLow, high: finalHigh };
+        setAnimKeyRange({ low: finalLow, high: finalHigh });
+      }
+      rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // Continuous (float) white-key count drives the keyboard height:
+  //   52 white keys span 87 semitones on a standard 88-note piano.
+  const animWhiteCount = Math.max(7, (animKeyRange.high - animKeyRange.low) * (52 / 87));
+
+  // Keyboard container height = natural proportion clamped to [60, 160] px.
+  // `keyboardWidth` is tracked by ResizeObserver so this stays accurate after resize.
+  const keyboardHeight =
+    keyboardWidth > 0
+      ? Math.round(Math.min(160, Math.max(60, (keyboardWidth / animWhiteCount) * 6)))
+      : 100; // fallback before first measurement
+
+  // Integer-rounded range for view components (canvas drawing uses integers).
+  const viewKeyRange = {
+    low:  Math.round(animKeyRange.low),
+    high: Math.round(animKeyRange.high),
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -454,7 +509,7 @@ export default function App() {
                   bpm={song.bpm}
                   settings={rollSettings}
                   onSeek={handleSeek}
-                  keyRange={keyRange}
+                  keyRange={viewKeyRange}
                 />
               </div>
             )}
@@ -481,19 +536,23 @@ export default function App() {
                     bpm={song.bpm}
                     settings={rollSettings}
                     onSeek={handleSeek}
-                    keyRange={keyRange}
+                    keyRange={viewKeyRange}
                   />
                 </div>
               </>
             )}
 
-            <div ref={keyboardContainerRef} className="view-layer view-layer--keyboard">
+            <div
+              ref={keyboardContainerRef}
+              className="view-layer view-layer--keyboard"
+              style={{ height: keyboardHeight }}
+            >
               <PianoKeyboardView
                 notes={song.notes}
                 transpose={transpose}
                 currentTime={currentTime}
                 showFingers={rollSettings.showFingers}
-                keyRange={keyRange}
+                keyRange={viewKeyRange}
               />
             </div>
 
@@ -503,7 +562,7 @@ export default function App() {
               currentTime={currentTime}
               keyboardRef={keyboardContainerRef}
               enabled={showParticles}
-              keyRange={keyRange}
+              keyRange={viewKeyRange}
             />
           </div>
         </main>
