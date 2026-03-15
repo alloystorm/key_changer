@@ -336,9 +336,9 @@ export default function App() {
       // Snap immediately on large jumps (e.g. new song load)
       const bigJump =
         Math.abs(target.low - low) > 24 || Math.abs(target.high - high) > 24;
-      const LERP = bigJump ? 1 : 0.09;
-      const newLow  = low  + (target.low  - low)  * LERP;
-      const newHigh = high + (target.high - high) * LERP;
+      const LERP = bigJump ? 1 : 0.01;
+      const newLow  = low  + Math.min(0.01, (target.low  - low)  * LERP);
+      const newHigh = high + Math.min(0.01, (target.high - high) * LERP);
       const settled =
         Math.abs(newLow  - target.low)  < 0.04 &&
         Math.abs(newHigh - target.high) < 0.04;
