@@ -96,10 +96,6 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
 
     ctx.clearRect(0, 0, width, height);
 
-    // Sidebar background (outside the roll transform)
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
-
     // ── Sub-pixel pan/zoom transform ──────────────────────────────────────────
     // Treat the pitch range as linear in x-space.  The geometry was built for
     // [iLow, iHigh] spanning rollWidth.  The float range [rangeLow, rangeHigh]

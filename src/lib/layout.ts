@@ -1,4 +1,4 @@
-export const SIDEBAR_WIDTH = 36;
+export const SIDEBAR_WIDTH = 0;
 export const MIDI_LOW = 21;
 export const MIDI_HIGH = 108;
 

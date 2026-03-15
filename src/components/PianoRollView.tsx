@@ -201,15 +201,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
         ctx.moveTo(SIDEBAR_WIDTH, y);
         ctx.lineTo(width, y);
         ctx.stroke();
-
-        // Measure number in sidebar
-        if (m > 0) {
-          ctx.fillStyle = 'rgba(255,255,255,0.4)';
-          ctx.font = '9px sans-serif';
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(String(m), SIDEBAR_WIDTH - 3, y - 1);
-        }
       }
       ctx.restore();
     }
@@ -311,13 +302,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
     notes.forEach((n) => drawNote(n, false));
     notes.forEach((n) => drawNote(n, true));
-
-    // ── Note drawing ends ────────────────────────────────────────────────
-
-
-    // ── Sidebar ───────────────────────────────────────────────────────────
-    ctx.fillStyle = '#0d0d0d';
-    ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
 
   }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, rangeLow, rangeHigh]);
 
