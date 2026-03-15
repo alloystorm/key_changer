@@ -175,67 +175,109 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime, totalDurati
     ctx.stroke();
     ctx.restore();
 
+    // ── Notes ───────────────────────────────────────────────────────────────
+    // Group simultaneous notes in the same stave into chord entries so they
+    // share a single stem instead of rendering N parallel stems.
+    const chordMap = new Map<string, {
+      stave: 'treble' | 'bass';
+      x: number;
+      beats: number;
+      isActive: boolean;
+      members: Array<{ slot: number; y: number; isSharp: boolean; color: string }>;
+    }>();
+
     for (const note of n) {
       const pitch = note.pitch + tp;
       if (pitch < 21 || pitch > 108) continue;
       const x = playLineX + (note.startTime - ct) * pxPerSec;
-      if (x < CLEF_AREA_WIDTH - NOTE_RX - 20 || x > W + NOTE_RX + 20) continue;
+      if (x < CLEF_AREA_WIDTH - NOTE_RX * scale - 20 || x > W + NOTE_RX * scale + 20) continue;
 
       const { stave, slot, isSharp } = getNoteInfo(pitch);
       const y = slotToY(stave, slot);
       const color = NOTE_COLORS[note.track % NOTE_COLORS.length];
       const isActive = note.startTime <= ct && ct < note.startTime + note.duration;
-
-      ctx.strokeStyle = LEDGER_COLOR;
-      ctx.lineWidth = Math.max(1, scale);
-      const ledgerH = LEDGER_HALF_W * scale;
-      if (slot <= -2) {
-        const lowest = slot % 2 === 0 ? slot : slot - 1;
-        for (let s = -2; s >= lowest; s -= 2) {
-          const ly = slotToY(stave, s);
-          ctx.beginPath(); ctx.moveTo(x - ledgerH, ly); ctx.lineTo(x + ledgerH, ly); ctx.stroke();
-        }
-      } else if (slot >= 10) {
-        const highest = slot % 2 === 0 ? slot : slot + 1;
-        for (let s = 10; s <= highest; s += 2) {
-          const ly = slotToY(stave, s);
-          ctx.beginPath(); ctx.moveTo(x - ledgerH, ly); ctx.lineTo(x + ledgerH, ly); ctx.stroke();
-        }
-      }
-
-      if (isSharp) {
-        ctx.fillStyle = isActive ? ACCY_ACTIVE : ACCY_COLOR;
-        ctx.font = `bold ${11 * scale}px sans-serif`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('#', x - NOTE_RX * scale - 2 * scale, y);
-      }
-
       const beats = snapBeats(note.duration * (songBpm / 60));
+
+      const key = `${stave}:${note.startTime.toFixed(4)}`;
+      if (!chordMap.has(key)) {
+        chordMap.set(key, { stave, x, beats, isActive, members: [] });
+      }
+      const entry = chordMap.get(key)!;
+      if (isActive) entry.isActive = true;
+      entry.members.push({ slot, y, isSharp, color });
+    }
+
+    const noteRx = NOTE_RX * scale;
+    const noteRy = NOTE_RY * scale;
+    const stemLen = STEM_LENGTH * scale;
+    const ledgerHW = LEDGER_HALF_W * scale;
+
+    for (const { stave, x, beats, isActive, members } of chordMap.values()) {
+      // Sort lowest to highest so members[0] = lowest note, members[last] = highest
+      members.sort((a, b) => a.slot - b.slot);
+      const lo = members[0];
+      const hi = members[members.length - 1];
+
       const filled = beats < 2.0;
       const hasStem = beats < 4.0;
       const numFlags = beats <= 0.125 ? 3 : beats <= 0.25 ? 2 : beats <= 0.5 ? 1 : 0;
 
-      const stemLength = STEM_LENGTH * scale;
-      const noteRx = NOTE_RX * scale;
-      const noteRy = NOTE_RY * scale;
-
-      const stemUp = slot <= 4;
+      // Stem direction: note farthest from middle line (slot 4) determines direction.
+      // If farthest note is at or below middle → stem up; above middle → stem down.
+      const midSlot = 4;
+      const farthest = members.reduce((p, c) =>
+        Math.abs(c.slot - midSlot) > Math.abs(p.slot - midSlot) ? c : p
+      );
+      const stemUp = farthest.slot <= midSlot;
       const stemX = stemUp ? x + noteRx * 0.85 : x - noteRx * 0.85;
-      const stemFree = stemUp ? y - stemLength : y + stemLength;
 
+      // Ledger lines (deduplicated when multiple notes need the same ledger)
+      ctx.strokeStyle = LEDGER_COLOR;
+      ctx.lineWidth = Math.max(1, scale);
+      const drawnLedgers = new Set<number>();
+      for (const { slot } of members) {
+        if (slot <= -2) {
+          const lowest = slot % 2 === 0 ? slot : slot - 1;
+          for (let s = -2; s >= lowest; s -= 2) {
+            if (drawnLedgers.has(s)) continue;
+            drawnLedgers.add(s);
+            const ly = slotToY(stave, s);
+            ctx.beginPath(); ctx.moveTo(x - ledgerHW, ly); ctx.lineTo(x + ledgerHW, ly); ctx.stroke();
+          }
+        } else if (slot >= 10) {
+          const highest = slot % 2 === 0 ? slot : slot + 1;
+          for (let s = 10; s <= highest; s += 2) {
+            if (drawnLedgers.has(s)) continue;
+            drawnLedgers.add(s);
+            const ly = slotToY(stave, s);
+            ctx.beginPath(); ctx.moveTo(x - ledgerHW, ly); ctx.lineTo(x + ledgerHW, ly); ctx.stroke();
+          }
+        }
+      }
+
+      // One stem per chord, covering the full note span plus standard extension
       if (hasStem) {
+        const stemColor = isActive ? 'rgba(255,255,255,0.8)' : lo.color;
+        // Stem up: base at lowest note, free end above highest note by 3.5 spaces
+        // Stem down: base at highest note, free end below lowest note by 3.5 spaces
+        const stemStartY = stemUp ? lo.y - noteRy * 0.5 : hi.y + noteRy * 0.5;
+        const stemEndY = stemUp
+          ? Math.min(lo.y - stemLen, hi.y - halfSpace * 3.5)
+          : Math.max(hi.y + stemLen, lo.y + halfSpace * 3.5);
+
         ctx.save();
-        ctx.strokeStyle = isActive ? 'rgba(255,255,255,0.75)' : color;
+        ctx.strokeStyle = stemColor;
         ctx.lineWidth = STEM_LW * scale;
         ctx.beginPath();
-        ctx.moveTo(stemX, stemUp ? y - noteRy * 0.5 : y + noteRy * 0.5);
-        ctx.lineTo(stemX, stemFree);
+        ctx.moveTo(stemX, stemStartY);
+        ctx.lineTo(stemX, stemEndY);
         ctx.stroke();
 
         ctx.lineWidth = FLAG_LW * scale;
         for (let f = 0; f < numFlags; f++) {
-          const fy = stemUp ? stemFree + f * halfSpace * 1.8 : stemFree - f * halfSpace * 1.8;
+          const fy = stemUp
+            ? stemEndY + f * halfSpace * 1.8
+            : stemEndY - f * halfSpace * 1.8;
           ctx.beginPath();
           if (stemUp) {
             ctx.moveTo(stemX, fy);
@@ -249,24 +291,35 @@ export function SheetMusicView({ notes, bpm, transpose, currentTime, totalDurati
         ctx.restore();
       }
 
-      const noteColor = isActive ? '#ffffff' : color;
-      if (isActive) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 12 * scale;
+      // Noteheads and accidentals
+      for (const { y, isSharp, color } of members) {
+        if (isSharp) {
+          ctx.fillStyle = isActive ? ACCY_ACTIVE : ACCY_COLOR;
+          ctx.font = `bold ${12 * scale}px serif`;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('♯', x - noteRx - 2 * scale, y);
+        }
+
+        const noteColor = isActive ? '#ffffff' : color;
+        if (isActive) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10 * scale;
+        }
+        ctx.strokeStyle = noteColor;
+        ctx.fillStyle = noteColor;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.beginPath();
+        ctx.ellipse(x, y, noteRx, noteRy, -0.3, 0, Math.PI * 2);
+        if (filled) {
+          ctx.fill();
+        } else {
+          ctx.fillStyle = BG_COLOR;
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
       }
-      ctx.strokeStyle = noteColor;
-      ctx.fillStyle = noteColor;
-      ctx.lineWidth = 1.5 * scale;
-      ctx.beginPath();
-      ctx.ellipse(x, y, noteRx, noteRy, -0.35, 0, Math.PI * 2);
-      if (filled) {
-        ctx.fill();
-      } else {
-        ctx.fillStyle = BG_COLOR;
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
     }
 
     ctx.fillStyle = BG_COLOR;

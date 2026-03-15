@@ -149,7 +149,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
         const n = activeNote.get(midi);
         if (n?.finger) {
           ctx.fillStyle = '#111';
-          ctx.font = `bold ${Math.min(geom.w * 0.65, height * 0.4, 12)}px sans-serif`;
+          ctx.font = `bold ${Math.min(geom.w * scaleX * 0.65, height * 0.4, 12)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.save();
@@ -188,7 +188,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
         const n = activeNote.get(midi);
         if (n?.finger) {
           ctx.fillStyle = '#fff';
-          ctx.font = `bold ${Math.min(geom.w * 0.65, height * 0.4, 12)}px sans-serif`;
+          ctx.font = `bold ${Math.min(geom.w * scaleX * 0.65, height * 0.4, 12)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.save();

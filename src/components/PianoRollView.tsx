@@ -287,11 +287,14 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
       const fingerHint = showFingers ? note.finger : undefined;
 
-      if (showFingers && noteH >= 22 && w >= 10 && !fingerHint) {
+      // wPx: actual screen width of this note (geometry width × zoom factor)
+      const wPx = w * scaleX;
+
+      if (showFingers && noteH >= 22 && wPx >= 10 && !fingerHint) {
         const beats = note.duration * (bpm / 60);
-        const sz = Math.min(w * 0.3, 4.0);
+        const sz = Math.min(wPx * 0.3, 4.0);
         const cy = yTop + noteH * 0.65;
-        const cx = x + w / 2 - sz * 0.3;
+        const cx = x + w / 2 - (sz * 0.3) / scaleX;
         ctx.globalAlpha = 0.75;
         // Un-scale horizontally so the symbol isn't squashed during zoom
         ctx.save();
@@ -300,9 +303,9 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
         ctx.restore();
       }
 
-      if (fingerHint && noteH >= 8 && w >= 8) {
+      if (fingerHint && noteH >= 8 && wPx >= 8) {
         ctx.globalAlpha = 1;
-        const fontSize = Math.min(w * 0.65, 13);
+        const fontSize = Math.min(wPx * 0.65, 13);
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = geom.isBlack ? '#fff' : '#111';
