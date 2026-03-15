@@ -335,8 +335,8 @@ export default function App() {
   // Expand: low decreasing or high increasing → notes need to be shown → ~1 s settle.
   // Shrink: low increasing or high decreasing → range can contract → ~1.5 s settle.
   // (0.8 was too slow: a portrait-mode song load shrinks ~25+ semitones and took 4+ s)
-  const EXPAND_LAMBDA = 5;
-  const SHRINK_LAMBDA = 2.0;
+  const EXPAND_LAMBDA = 1.5;
+  const SHRINK_LAMBDA = 0.6;
 
   useEffect(() => {
     let rafId: number;
