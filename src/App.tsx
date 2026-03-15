@@ -552,7 +552,7 @@ export default function App() {
                 transpose={transpose}
                 currentTime={currentTime}
                 showFingers={rollSettings.showFingers}
-                keyRange={viewKeyRange}
+                keyRange={animKeyRange}
               />
             </div>
 
