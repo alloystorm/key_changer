@@ -179,6 +179,31 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
         }
       }
     }
+
+    // ── Key-press glow (replaces GlowOverlay) ─────────────────────────────────
+    // Drawn after both key passes so the glow sits on top.
+    // Using globalCompositeOperation='lighter' naturally brightens whatever
+    // colour is already on the canvas.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    activeKeys.forEach((pitch) => {
+      const g = keyGeom.get(pitch);
+      if (!g) return;
+      const cx = SIDEBAR_WIDTH + g.x + g.w / 2;
+      // Outer wide glow: fades down from the keyboard top edge
+      const glowH = Math.min(30, keyboardHeight * 0.42);
+      const glowW = g.w + 14;
+      const gradGlow = ctx.createLinearGradient(0, 0, 0, glowH);
+      gradGlow.addColorStop(0, 'rgba(255,255,255,0.45)');
+      gradGlow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gradGlow;
+      ctx.fillRect(cx - glowW / 2, 0, glowW, glowH);
+      // Inner bright spark stripe at the very top
+      const sparkH = Math.min(6, keyboardHeight * 0.10);
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillRect(cx - g.w / 2 - 2, 0, g.w + 4, sparkH);
+    });
+    ctx.restore();
   }, [notes, transpose, currentTime, showFingers, rangeLow, rangeHigh]);
 
   useEffect(() => {

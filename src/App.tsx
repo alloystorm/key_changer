@@ -8,14 +8,13 @@ import type { PlayerStatus } from './lib/player';
 import { parseMidi } from './lib/midiParser';
 import { parseMxl } from './lib/mxlParser';
 import { storage } from './lib/storage';
-import { MIDI_LOW, MIDI_HIGH, SIDEBAR_WIDTH, isBlack, countWhiteKeys } from './lib/layout';
+import { MIDI_LOW, MIDI_HIGH, SIDEBAR_WIDTH, countWhiteKeys } from './lib/layout';
 import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
 import { PianoRollView } from './components/PianoRollView';
 import { SheetMusicView } from './components/SheetMusicView';
 import { PianoKeyboardView } from './components/PianoKeyboardView';
 import { SongLibrary } from './components/SongLibrary';
-import { GlowOverlay } from './components/GlowOverlay';
 import { ParticleOverlay } from './components/ParticleOverlay';
 import './App.css';
 
@@ -215,7 +214,9 @@ export default function App() {
 
   const keyboardContainerRef = useRef<HTMLDivElement>(null);
 
-  // Track keyboard container width for dynamic key range
+  // Track keyboard container width for dynamic key range.
+  // Must depend on `song` because the keyboard div only mounts after a song loads;
+  // the ref is null on initial mount so an empty-dep effect would never attach.
   useEffect(() => {
     const container = keyboardContainerRef.current;
     if (!container) return;
@@ -226,7 +227,7 @@ export default function App() {
     });
     ro.observe(container);
     return () => ro.disconnect();
-  }, []);
+  }, [song]);
 
   // Compute song's pitch range (only recalculates when song or transpose changes)
   const songRange = useMemo(() => {
@@ -244,22 +245,37 @@ export default function App() {
     };
   }, [song, transpose]);
 
-  const MIN_WK_PX = 8; // minimum white-key width in pixels before switching to windowed mode
+  // ────────────────────────────────────────────────────────────────────
+  // Key range thresholds (CSS pixels per white key)
+  // ────────────────────────────────────────────────────────────────────
+  //  ≥ FULL_RANGE_MIN_PX  →  all 88 keys shown regardless of song range
+  //    (landscape phones ~10–17px per key, tablets ~15–25px, desktop ~20–30px)
+  //  < FULL_RANGE_MIN_PX  →  trim to song’s actual pitch range
+  //  < SONG_RANGE_MIN_PX  →  windowed mode (pan to follow active notes)
+  const FULL_RANGE_MIN_PX = 8;
+  const SONG_RANGE_MIN_PX = 4;
 
   // Compute visible key range: trims to song range on narrow screens,
   // and pans to follow active notes when even the song range is too wide.
   const keyRange = useMemo(() => {
     if (!song || !songRange || keyboardWidth === 0) return { low: MIDI_LOW, high: MIDI_HIGH };
-    const { low: songLow, high: songHigh } = songRange;
     const rollWidth = Math.max(1, keyboardWidth - SIDEBAR_WIDTH);
+
+    // Enough room for full 88 keys — show them all
+    if (rollWidth / 52 >= FULL_RANGE_MIN_PX) {
+      return { low: MIDI_LOW, high: MIDI_HIGH };
+    }
+
+    const { low: songLow, high: songHigh } = songRange;
     const songWhites = countWhiteKeys(songLow, songHigh);
 
-    if (songWhites === 0 || rollWidth / songWhites >= MIN_WK_PX) {
+    // Enough room for song’s actual pitch range
+    if (songWhites === 0 || rollWidth / songWhites >= SONG_RANGE_MIN_PX) {
       return { low: songLow, high: songHigh };
     }
 
     // Windowed mode: screen too narrow for full song range — pan to follow notes
-    const maxWhites = Math.max(7, Math.floor(rollWidth / MIN_WK_PX));
+    const maxWhites = Math.max(7, Math.floor(rollWidth / SONG_RANGE_MIN_PX));
 
     // Compute centroid of notes in the next 4 seconds
     let sum = 0, count = 0;
@@ -308,33 +324,32 @@ export default function App() {
         <div className="header-right">
           {song && (
             <>
-              <div className="view-toggle">
-                <button
-                  className={`btn btn-sm${viewMode !== 'sheet' ? ' btn-active' : ''}`}
-                  onClick={() => {
-                    // Toggle Bar: if both showing, turn off bar (→ sheet). If sheet only, turn on bar (→ both). If bar only, no-op.
-                    if (viewMode === 'pianoroll') return; // only bar, can't turn off
-                    if (viewMode === 'both') setViewMode('sheet');
-                    else setViewMode('both'); // was 'sheet', enable bar
-                  }}
-                  title="Piano Roll"
-                >
-                  Bar
-                </button>
-                <button
-                  className={`btn btn-sm${viewMode !== 'pianoroll' ? ' btn-active' : ''}`}
-                  disabled={!song.musicXml}
-                  onClick={() => {
-                    // Toggle Sheet: if both showing, turn off sheet (→ pianoroll). If pianoroll only, turn on sheet (→ both). If sheet only, no-op.
-                    if (viewMode === 'sheet') return; // only sheet, can't turn off
-                    if (viewMode === 'both') setViewMode('pianoroll');
-                    else setViewMode('both'); // was 'pianoroll', enable sheet
-                  }}
-                  title={song.musicXml ? 'Sheet Music' : 'No sheet music for this file'}
-                >
-                  Sheet
-                </button>
-              </div>
+              {song && (
+                <div className="view-toggle">
+                  <button
+                    className={`btn btn-sm${viewMode !== 'sheet' ? ' btn-active' : ''}`}
+                    onClick={() => {
+                      if (viewMode === 'pianoroll') return;
+                      if (viewMode === 'both') setViewMode('sheet');
+                      else setViewMode('both');
+                    }}
+                    title="Piano Roll"
+                  >
+                    Bar
+                  </button>
+                  <button
+                    className={`btn btn-sm${viewMode !== 'pianoroll' ? ' btn-active' : ''}`}
+                    onClick={() => {
+                      if (viewMode === 'sheet') return;
+                      if (viewMode === 'both') setViewMode('pianoroll');
+                      else setViewMode('both');
+                    }}
+                    title="Sheet Music"
+                  >
+                    Sheet
+                  </button>
+                </div>
+              )}
               <button
                 className={`btn btn-sm${rollSettings.showFingers ? ' btn-active' : ''}`}
                 onClick={() => handleRollSettingsChange({ showFingers: !rollSettings.showFingers })}
@@ -471,19 +486,13 @@ export default function App() {
               />
             </div>
 
-            <GlowOverlay 
-              notes={song.notes}
-              transpose={transpose}
-              currentTime={currentTime}
-              keyboardRef={keyboardContainerRef}
-            />
-
             <ParticleOverlay
               notes={song.notes}
               transpose={transpose}
               currentTime={currentTime}
               keyboardRef={keyboardContainerRef}
               enabled={showParticles}
+              keyRange={keyRange}
             />
           </div>
         </main>

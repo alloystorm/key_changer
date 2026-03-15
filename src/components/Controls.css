@@ -130,54 +130,80 @@
   min-width: 34px;
 }
 
-/* ── Key shift ───────────────────────────────────────────── */
-.key-shift {
+/* ── Spinner control (key shift + speed) ────────────────── */
+.spinner-ctl {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 42px;
 }
 
-.key-display {
+.spinner-ctl__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.12s, background 0.12s;
+}
+
+.spinner-ctl__arrow:hover:not(:disabled) {
+  color: #ddd;
+  background: #2a2a2a;
+}
+
+.spinner-ctl__arrow:active:not(:disabled) {
+  background: #333;
+  color: #fff;
+}
+
+.spinner-ctl__arrow:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.spinner-ctl__value {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 36px;
+  padding: 4px 8px;
+  border-top: 1px solid #2a2a2a;
+  border-bottom: 1px solid #2a2a2a;
+  gap: 0;
 }
 
-.key-label {
-  font-size: 18px;
+.spinner-ctl__main {
+  font-size: 15px;
   font-weight: 700;
   color: #fff;
-  line-height: 1.1;
+  line-height: 1.2;
 }
 
-.key-offset {
-  font-size: 10px;
-  color: #7c6af7;
-  line-height: 1;
-}
-
-/* ── BPM ─────────────────────────────────────────────────── */
-.bpm-display {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 40px;
-  padding-left: 8px;
-  border-left: 1px solid #333;
-}
-
-.bpm-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ddd;
-  line-height: 1.1;
-}
-
-.bpm-unit {
-  font-size: 10px;
-  color: #666;
+.spinner-ctl__sub {
+  font-size: 9px;
+  color: #555;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.spinner-ctl__sub--accent {
+  color: #7c6af7;
+}
+
+.spinner-ctl__value--grab {
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
 }
 
 

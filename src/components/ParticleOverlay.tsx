@@ -5,7 +5,7 @@ import {
   MIDI_LOW,
   MIDI_HIGH,
   NOTE_COLORS,
-  buildKeyGeometry,
+  buildKeyGeometryForRange,
   hexToRgb,
   type KeyGeom,
 } from '../lib/layout';
@@ -147,14 +147,16 @@ interface Props {
   currentTime: number;
   keyboardRef: React.RefObject<HTMLDivElement>;
   enabled: boolean;
+  keyRange?: { low: number; high: number };
 }
 
-export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, enabled }: Props) {
+export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, enabled, keyRange }: Props) {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const lastTimeRef  = useRef(currentTime);
   const keyGeomRef   = useRef<Map<number, KeyGeom>>(new Map());
+  const geomStateRef = useRef({ rollWidth: 0, low: MIDI_LOW, high: MIDI_HIGH });
   const sizeRef      = useRef({ width: 0, height: 0 });
   /** Wall-clock timestamp of the previous animation frame (ms) */
   const lastFrameMs  = useRef(performance.now());
@@ -341,12 +343,18 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
     const hitY  = keyboardRect.top  - parentRect.top;
     const hitX  = keyboardRect.left - parentRect.left;
     const rollWidth = keyboardRect.width - SIDEBAR_WIDTH;
+    const rangeLow  = keyRange?.low  ?? MIDI_LOW;
+    const rangeHigh = keyRange?.high ?? MIDI_HIGH;
 
-    // Refresh key geometry when canvas width changes
-    const existingWkW = keyGeomRef.current.get(MIDI_LOW + 2)?.w ?? 0;
-    const expectedWkW = rollWidth / 52;
-    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
-      keyGeomRef.current = buildKeyGeometry(rollWidth);
+    // Rebuild key geometry when width or range changes
+    const prev = geomStateRef.current;
+    if (
+      Math.abs(prev.rollWidth - rollWidth) > 0.5 ||
+      prev.low !== rangeLow ||
+      prev.high !== rangeHigh
+    ) {
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, rangeLow, rangeHigh);
+      geomStateRef.current = { rollWidth, low: rangeLow, high: rangeHigh };
     }
     const keyGeom = keyGeomRef.current;
 
@@ -354,7 +362,8 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
       const isActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
       if (!isActive) return;
 
-      const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
+      const pitch = note.pitch + transpose;
+      if (pitch < rangeLow || pitch > rangeHigh) return;
       const geom  = keyGeom.get(pitch);
       if (!geom) return;
 
@@ -371,7 +380,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
     });
 
     lastTimeRef.current = currentTime;
-  }, [notes, currentTime, transpose, keyboardRef, burst, trickle, enabled]);
+  }, [notes, currentTime, transpose, keyboardRef, burst, trickle, enabled, keyRange]);
 
   return (
     <div ref={containerRef} className="particle-overlay">

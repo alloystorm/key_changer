@@ -37,6 +37,30 @@ function LoadingIcon() {
   );
 }
 
+function ChevronUpIcon() {
+  return (
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5L5 1L9 5" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 1L5 5L9 1" />
+    </svg>
+  );
+}
+
+const DragHandle = () => (
+  <svg width="14" height="5" viewBox="0 0 14 5" aria-hidden="true" style={{ display: 'block', margin: '3px auto 0', opacity: 0.28 }}>
+    <rect y="0"   width="14" height="1" rx="0.5" fill="currentColor" />
+    <rect y="2"   width="14" height="1" rx="0.5" fill="currentColor" />
+    <rect y="4"   width="14" height="1" rx="0.5" fill="currentColor" />
+  </svg>
+);
+
 // ── Key name helpers ────────────────────────────────────────────────────────
 const KEY_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 
@@ -128,63 +152,78 @@ export function Controls({
           <span className="time-label">{formatTime(totalDuration)}</span>
         </div>
 
-        {/* Key shift */}
-        <div className="key-shift">
+        {/* Key Shift — vertical spinner */}
+        <div className="spinner-ctl">
           <button
-            className="btn btn-icon"
-            onClick={() => onTransposeChange(-1)}
-            disabled={isLoading || transpose <= -12}
-            title="Shift down 1 semitone"
-          >
-            ♭
-          </button>
-          <div className="key-display" title={`Transposing ${transpose >= 0 ? '+' : ''}${transpose} semitones`}>
-            <span className="key-label">{keyLabel(transpose)}</span>
-            {transpose !== 0 && (
-              <span className="key-offset">{transpose > 0 ? `+${transpose}` : transpose}</span>
-            )}
-          </div>
-          <button
-            className="btn btn-icon"
+            className="spinner-ctl__arrow"
             onClick={() => onTransposeChange(+1)}
             disabled={isLoading || transpose >= 12}
             title="Shift up 1 semitone"
           >
-            ♯
+            <ChevronUpIcon />
+          </button>
+          <div
+            className="spinner-ctl__value"
+            title={`Transposing ${transpose >= 0 ? '+' : ''}${transpose} semitones`}
+          >
+            <span className="spinner-ctl__main">{keyLabel(transpose)}</span>
+            <span className={`spinner-ctl__sub${transpose !== 0 ? ' spinner-ctl__sub--accent' : ''}`}>
+              {transpose !== 0 ? (transpose > 0 ? `+${transpose}` : String(transpose)) : 'key'}
+            </span>
+          </div>
+          <button
+            className="spinner-ctl__arrow"
+            onClick={() => onTransposeChange(-1)}
+            disabled={isLoading || transpose <= -12}
+            title="Shift down 1 semitone"
+          >
+            <ChevronDownIcon />
           </button>
         </div>
 
-        {/* BPM / Speed Control */}
-        <div
-          className="bpm-display"
-          title="Drag up/down to change speed, double-click to reset"
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            const startY = e.clientY;
-            const startRate = playbackRate;
-            
-            const onPointerMove = (moveEvent: PointerEvent) => {
-              const deltaY = startY - moveEvent.clientY;
-              const newRate = startRate + (deltaY / 100);
-              onPlaybackRateChange(newRate);
-            };
-            
-            const onPointerUp = (upEvent: PointerEvent) => {
-              upEvent.currentTarget?.removeEventListener('pointermove', onPointerMove as any);
-              upEvent.currentTarget?.removeEventListener('pointerup', onPointerUp as any);
-            };
-
-            e.currentTarget.addEventListener('pointermove', onPointerMove as any);
-            e.currentTarget.addEventListener('pointerup', onPointerUp as any);
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            onPlaybackRateChange(1.0);
-          }}
-          style={{ cursor: 'ns-resize', userSelect: 'none', touchAction: 'none' }}
-        >
-          <span className="bpm-value">{Math.round(bpm * playbackRate)}</span>
-          <span className="bpm-unit">{playbackRate === 1 ? 'BPM' : `${Math.round(playbackRate * 100)}%`}</span>
+        {/* Speed — vertical spinner (arrows = ±5%, centre = drag for fine control) */}
+        <div className="spinner-ctl">
+          <button
+            className="spinner-ctl__arrow"
+            onClick={() => onPlaybackRateChange(playbackRate + 0.05)}
+            disabled={isLoading}
+            title="Speed up"
+          >
+            <ChevronUpIcon />
+          </button>
+          <div
+            className="spinner-ctl__value spinner-ctl__value--grab"
+            title="Drag up/down to fine-tune speed · double-click to reset"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const startY = e.clientY;
+              const startRate = playbackRate;
+              const onPointerMove = (mv: PointerEvent) => {
+                onPlaybackRateChange(startRate + (startY - mv.clientY) / 100);
+              };
+              const onPointerUp = (up: PointerEvent) => {
+                up.currentTarget?.removeEventListener('pointermove', onPointerMove as any);
+                up.currentTarget?.removeEventListener('pointerup', onPointerUp as any);
+              };
+              e.currentTarget.addEventListener('pointermove', onPointerMove as any);
+              e.currentTarget.addEventListener('pointerup', onPointerUp as any);
+            }}
+            onDoubleClick={(e) => { e.stopPropagation(); onPlaybackRateChange(1.0); }}
+          >
+            <span className="spinner-ctl__main">{Math.round(bpm * playbackRate)}</span>
+            <span className={`spinner-ctl__sub${playbackRate !== 1 ? ' spinner-ctl__sub--accent' : ''}`}>
+              {playbackRate === 1 ? 'bpm' : `${Math.round(playbackRate * 100)}%`}
+            </span>
+            <DragHandle />
+          </div>
+          <button
+            className="spinner-ctl__arrow"
+            onClick={() => onPlaybackRateChange(playbackRate - 0.05)}
+            disabled={isLoading}
+            title="Slow down"
+          >
+            <ChevronDownIcon />
+          </button>
         </div>
       </div>
     </div>
