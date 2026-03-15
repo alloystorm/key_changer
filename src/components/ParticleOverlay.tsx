@@ -110,7 +110,7 @@ function makeEmber(xLeft: number, xRight: number, y: number, ri: number, gi: num
     x: r(xLeft, xRight),
     y,
     vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    vy: Math.sin(angle) * speed - 50,
     age: 0,
     lifetime: r(0.4, 2.8),
     r: ri, g: gi, b: bi,
@@ -172,10 +172,10 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
     const room = MAX_PARTICLES - ps.length;
     if (room <= 0) return;
 
-    const nSparks = Math.min(Math.floor(r(4, 8)), room) * 5;
+    const nSparks = Math.min(Math.floor(r(4, 8)), room);
     for (let i = 0; i < nSparks; i++) ps.push(makeSpark(xLeft, xRight, cy, ri, gi, bi));
 
-    const nEmbers = Math.min(Math.floor(r(5, 10)), room - nSparks);
+    const nEmbers = Math.min(Math.floor(r(2, 5)), room - nSparks);
     for (let i = 0; i < nEmbers; i++) ps.push(makeEmber(xLeft, xRight, cy, ri, gi, bi));
 
     const nSmoke = Math.min(Math.floor(r(2, 4)), room - nSparks - nEmbers);
@@ -186,7 +186,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
     if (particlesRef.current.length >= MAX_PARTICLES) return;
     const hex = NOTE_COLORS[track % NOTE_COLORS.length];
     const { r: ri, g: gi, b: bi } = hexToRgb(hex);
-    if (Math.random() < 0.35) particlesRef.current.push(makeEmber(xLeft, xRight, cy, ri, gi, bi));
+    if (Math.random() < 0.1) particlesRef.current.push(makeEmber(xLeft, xRight, cy, ri, gi, bi));
     if (Math.random() < 0.08) particlesRef.current.push(makeSmoke(xLeft, xRight, cy, ri, gi, bi));
   }, []);
 
@@ -243,7 +243,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
         const ny = speed > 0.1 ? p.vy / speed : 1;
         const alpha = Math.pow(life, 0.45) * 0.92;
 
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = alpha * 0.5;
         ctx.strokeStyle = `rgba(${p.r},${p.g},${p.b},1)`;
         ctx.lineWidth = p.size;
         ctx.lineCap = 'round';
@@ -254,7 +254,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, en
 
         // White-hot leading tip
         ctx.fillStyle = '#fff';
-        ctx.globalAlpha = alpha * 0.9;
+        ctx.globalAlpha = alpha * 0.25;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 0.55, 0, Math.PI * 2);
         ctx.fill();
