@@ -1,6 +1,41 @@
 import type { PlayerStatus } from '../lib/player';
-import type { ViewMode, RollSettings } from '../lib/types';
 import './Controls.css';
+
+// ── Inline SVG icons (platform-consistent rendering) ─────────────────────────
+function PlayIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <polygon points="2,1 11,6 2,11" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <rect x="1.5" y="1" width="3.5" height="10" rx="1" />
+      <rect x="7" y="1" width="3.5" height="10" rx="1" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+      <rect x="1" y="1" width="8" height="8" rx="1.5" />
+    </svg>
+  );
+}
+
+function LoadingIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="6" cy="6" r="4.5" strokeDasharray="14 8" strokeLinecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 6 6" to="360 6 6" dur="0.8s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  );
+}
 
 // ── Key name helpers ────────────────────────────────────────────────────────
 const KEY_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -24,14 +59,12 @@ interface Props {
   totalDuration: number;
   bpm: number;
   playbackRate: number;
-  viewMode: ViewMode;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
   onTransposeChange: (delta: number) => void;
   onPlaybackRateChange: (rate: number) => void;
   onSeek: (t: number) => void;
-  onViewModeChange: (mode: ViewMode) => void;
   onChangeFile: () => void;
 }
 
@@ -42,14 +75,12 @@ export function Controls({
   totalDuration,
   bpm,
   playbackRate,
-  viewMode,
   onPlay,
   onPause,
   onStop,
   onTransposeChange,
   onPlaybackRateChange,
   onSeek,
-  onViewModeChange,
   onChangeFile,
 }: Props) {
   const isPlaying = status === 'playing';
@@ -69,7 +100,7 @@ export function Controls({
             disabled={isLoading || status === 'idle' || status === 'ready'}
             title="Stop"
           >
-            ⏹
+            <StopIcon />
           </button>
           <button
             className="btn btn-icon btn-primary"
@@ -77,7 +108,7 @@ export function Controls({
             disabled={isLoading || status === 'idle'}
             title={isPlaying ? 'Pause' : 'Play'}
           >
-            {isLoading ? '⏳' : isPlaying ? '⏸' : '▶'}
+            {isLoading ? <LoadingIcon /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
           </button>
         </div>
 

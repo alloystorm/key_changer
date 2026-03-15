@@ -6,7 +6,8 @@ import {
   MIDI_HIGH, 
   NOTE_COLORS, 
   isBlack, 
-  buildKeyGeometry, 
+  buildKeyGeometryForRange, 
+  countWhiteKeys,
   shadeColor,
   triggerFrac,
   type KeyGeom
@@ -80,15 +81,19 @@ interface Props {
   bpm: number;
   settings: RollSettings;
   onSeek: (t: number) => void;
+  keyRange?: { low: number; high: number };
 }
 
-export function PianoRollView({ notes, transpose, currentTime, totalDuration, bpm, settings, onSeek }: Props) {
+export function PianoRollView({ notes, transpose, currentTime, totalDuration, bpm, settings, onSeek, keyRange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
   const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
+  const rangeRef = useRef({ low: MIDI_LOW, high: MIDI_HIGH });
 
   const { flowDirection, triggerPosition, showFingers } = settings;
+  const rangeLow  = keyRange?.low  ?? MIDI_LOW;
+  const rangeHigh = keyRange?.high ?? MIDI_HIGH;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -102,13 +107,18 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     const rollWidth = width - SIDEBAR_WIDTH;
     const rollHeight = height;
 
-    // Rebuild key geometry when width changes
+    // Rebuild key geometry when width or range changes
     const existingWkW = keyGeomRef.current.size > 0
-      ? (keyGeomRef.current.get(MIDI_LOW + 2)?.w ?? 0) + 1
+      ? (keyGeomRef.current.get(!isBlack(rangeLow) ? rangeLow : rangeLow + 1)?.w ?? 0) + 1
       : 0;
-    const expectedWkW = rollWidth / 52;
-    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
-      keyGeomRef.current = buildKeyGeometry(rollWidth);
+    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(rangeLow, rangeHigh));
+    if (
+      Math.abs(existingWkW - expectedWkW) > 0.5 ||
+      rangeRef.current.low !== rangeLow ||
+      rangeRef.current.high !== rangeHigh
+    ) {
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, rangeLow, rangeHigh);
+      rangeRef.current = { low: rangeLow, high: rangeHigh };
     }
     const keyGeom = keyGeomRef.current;
 
@@ -125,7 +135,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     });
 
     // Octave divider lines
-    for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
+    for (let m = rangeLow; m <= rangeHigh; m++) {
       if (m % 12 === 0 && keyGeom.has(m)) {
         const geom = keyGeom.get(m)!;
         ctx.strokeStyle = '#2a2a2a';
@@ -210,7 +220,8 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     const activeHintKey = new Map<number, string>(); // pitch → hint map key for current moment
 
     notes.forEach((note) => {
-      const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
+      const pitch = note.pitch + transpose;
+      if (pitch < rangeLow || pitch > rangeHigh) return;
       if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
@@ -220,7 +231,8 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
     // ── Draw notes (white pass, then black on top) ────────────────────────
     const drawNote = (note: NoteEvent, blackPass: boolean) => {
-      const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
+      const pitch = note.pitch + transpose;
+      if (pitch < rangeLow || pitch > rangeHigh) return;
       const geom = keyGeom.get(pitch);
       if (!geom || geom.isBlack !== blackPass) return;
 
@@ -307,7 +319,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, SIDEBAR_WIDTH, height);
 
-  }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers]);
+  }, [notes, transpose, currentTime, bpm, flowDirection, triggerPosition, showFingers, rangeLow, rangeHigh]);
 
   // Resize observer
   useEffect(() => {

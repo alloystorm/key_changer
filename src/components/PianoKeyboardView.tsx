@@ -6,7 +6,8 @@ import {
   MIDI_HIGH, 
   NOTE_COLORS, 
   isBlack, 
-  buildKeyGeometry, 
+  buildKeyGeometryForRange, 
+  countWhiteKeys,
   shadeColor,
   hexToRgb,
   type KeyGeom
@@ -19,13 +20,17 @@ interface Props {
   transpose: number;
   currentTime: number;
   showFingers: boolean;
+  keyRange?: { low: number; high: number };
 }
 
-export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }: Props) {
+export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, keyRange }: Props) {
+  const rangeLow  = keyRange?.low  ?? MIDI_LOW;
+  const rangeHigh = keyRange?.high ?? MIDI_HIGH;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
   const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
+  const rangeRef = useRef({ low: MIDI_LOW, high: MIDI_HIGH });
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -40,11 +45,16 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     const keyboardHeight = height;
 
     const existingWkW = keyGeomRef.current.size > 0
-      ? (keyGeomRef.current.get(MIDI_LOW + 2)?.w ?? 0) + 1
+      ? (keyGeomRef.current.get(!isBlack(rangeLow) ? rangeLow : rangeLow + 1)?.w ?? 0) + 1
       : 0;
-    const expectedWkW = rollWidth / 52; // 52 white keys
-    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
-      keyGeomRef.current = buildKeyGeometry(rollWidth);
+    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(rangeLow, rangeHigh));
+    if (
+      Math.abs(existingWkW - expectedWkW) > 0.5 ||
+      rangeRef.current.low !== rangeLow ||
+      rangeRef.current.high !== rangeHigh
+    ) {
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, rangeLow, rangeHigh);
+      rangeRef.current = { low: rangeLow, high: rangeHigh };
     }
     const keyGeom = keyGeomRef.current;
 
@@ -57,7 +67,8 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     const PREVIEW_WINDOW = 3.0; // seconds
 
     notes.forEach((note) => {
-      const pitch = Math.max(MIDI_LOW, Math.min(MIDI_HIGH, note.pitch + transpose));
+      const pitch = note.pitch + transpose;
+      if (pitch < rangeLow || pitch > rangeHigh) return;
       const isCurrentlyActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
 
       if (isCurrentlyActive) {
@@ -88,7 +99,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     const bkH = keyboardHeight * 0.58;
 
     // White keys
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
+    for (let midi = rangeLow; midi <= rangeHigh; midi++) {
       if (isBlack(midi)) continue;
       const geom = keyGeom.get(midi)!;
       const active = activeKeys.has(midi);
@@ -132,7 +143,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
     }
 
     // Black keys
-    for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
+    for (let midi = rangeLow; midi <= rangeHigh; midi++) {
       if (!isBlack(midi)) continue;
       const geom = keyGeom.get(midi);
       if (!geom) continue;
@@ -168,7 +179,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers }
         }
       }
     }
-  }, [notes, transpose, currentTime, showFingers]);
+  }, [notes, transpose, currentTime, showFingers, rangeLow, rangeHigh]);
 
   useEffect(() => {
     const container = containerRef.current;

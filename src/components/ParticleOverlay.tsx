@@ -146,9 +146,10 @@ interface Props {
   transpose: number;
   currentTime: number;
   keyboardRef: React.RefObject<HTMLDivElement>;
+  enabled: boolean;
 }
 
-export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: Props) {
+export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef, enabled }: Props) {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<Particle[]>([]);
@@ -294,12 +295,21 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
   useEffect(() => {
     let frameId: number;
     const loop = (nowMs: number) => {
+      if (!enabled) {
+        // Clear canvas and drain particles when disabled
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particlesRef.current = [];
+        frameId = requestAnimationFrame(loop);
+        return;
+      }
       updateAndDraw(nowMs);
       frameId = requestAnimationFrame(loop);
     };
     frameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frameId);
-  }, [updateAndDraw]);
+  }, [updateAndDraw, enabled]);
 
   // ── Resize observer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -324,7 +334,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
   useEffect(() => {
     const keyboardEl  = keyboardRef.current;
     const containerEl = containerRef.current;
-    if (!keyboardEl || !containerEl) return;
+    if (!enabled || !keyboardEl || !containerEl) return;
 
     const parentRect   = containerEl.getBoundingClientRect();
     const keyboardRect = keyboardEl.getBoundingClientRect();
@@ -361,7 +371,7 @@ export function ParticleOverlay({ notes, transpose, currentTime, keyboardRef }: 
     });
 
     lastTimeRef.current = currentTime;
-  }, [notes, currentTime, transpose, keyboardRef, burst, trickle]);
+  }, [notes, currentTime, transpose, keyboardRef, burst, trickle, enabled]);
 
   return (
     <div ref={containerRef} className="particle-overlay">

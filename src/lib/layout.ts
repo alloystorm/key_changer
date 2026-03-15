@@ -19,11 +19,20 @@ export interface KeyGeom {
   isBlack: boolean;
 }
 
-export function buildKeyGeometry(rollWidth: number): Map<number, KeyGeom> {
+export function countWhiteKeys(low: number, high: number): number {
+  let count = 0;
+  for (let m = low; m <= high; m++) {
+    if (!isBlack(m)) count++;
+  }
+  return count;
+}
+
+export function buildKeyGeometryForRange(rollWidth: number, low: number, high: number): Map<number, KeyGeom> {
   const whites: number[] = [];
-  for (let m = MIDI_LOW; m <= MIDI_HIGH; m++) {
+  for (let m = low; m <= high; m++) {
     if (!isBlack(m)) whites.push(m);
   }
+  if (whites.length === 0) return new Map();
   const wkW = rollWidth / whites.length;
   const bkW = wkW * 0.60;
 
@@ -33,12 +42,16 @@ export function buildKeyGeometry(rollWidth: number): Map<number, KeyGeom> {
   });
   whites.forEach((midi, i) => {
     const nb = midi + 1;
-    if (isBlack(nb) && nb <= MIDI_HIGH) {
+    if (isBlack(nb) && nb <= high) {
       const cx = (i + 1) * wkW;
       map.set(nb, { x: cx - bkW / 2, w: bkW, isBlack: true });
     }
   });
   return map;
+}
+
+export function buildKeyGeometry(rollWidth: number): Map<number, KeyGeom> {
+  return buildKeyGeometryForRange(rollWidth, MIDI_LOW, MIDI_HIGH);
 }
 
 export function shadeColor(hex: string, amount: number): string {

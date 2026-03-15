@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { ParsedSong, ViewMode, RollSettings } from './lib/types';
 import { applyFingerHints } from './lib/fingering';
 import { buildChordEvents } from './lib/chords';
@@ -8,6 +8,7 @@ import type { PlayerStatus } from './lib/player';
 import { parseMidi } from './lib/midiParser';
 import { parseMxl } from './lib/mxlParser';
 import { storage } from './lib/storage';
+import { MIDI_LOW, MIDI_HIGH, SIDEBAR_WIDTH, isBlack, countWhiteKeys } from './lib/layout';
 import { FileUpload } from './components/FileUpload';
 import { Controls } from './components/Controls';
 import { PianoRollView } from './components/PianoRollView';
@@ -34,7 +35,10 @@ export default function App() {
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>('idle');
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [showParticles, setShowParticles] = useState(true);
+  const [keyboardWidth, setKeyboardWidth] = useState(0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
+  const windowCenterRef = useRef(60); // smoothed MIDI centroid for windowed key range
   const [rollSettings, setRollSettings] = useState<RollSettings>({
     flowDirection: 'down',
     triggerPosition: 'bottom',
@@ -211,6 +215,80 @@ export default function App() {
 
   const keyboardContainerRef = useRef<HTMLDivElement>(null);
 
+  // Track keyboard container width for dynamic key range
+  useEffect(() => {
+    const container = keyboardContainerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setKeyboardWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute song's pitch range (only recalculates when song or transpose changes)
+  const songRange = useMemo(() => {
+    if (!song) return null;
+    let lo = 127, hi = 0;
+    for (const n of song.notes) {
+      const p = n.pitch + transpose;
+      if (p < lo) lo = p;
+      if (p > hi) hi = p;
+    }
+    if (lo > hi) return null;
+    return {
+      low: Math.max(MIDI_LOW, lo - 2),
+      high: Math.min(MIDI_HIGH, hi + 2),
+    };
+  }, [song, transpose]);
+
+  const MIN_WK_PX = 8; // minimum white-key width in pixels before switching to windowed mode
+
+  // Compute visible key range: trims to song range on narrow screens,
+  // and pans to follow active notes when even the song range is too wide.
+  const keyRange = useMemo(() => {
+    if (!song || !songRange || keyboardWidth === 0) return { low: MIDI_LOW, high: MIDI_HIGH };
+    const { low: songLow, high: songHigh } = songRange;
+    const rollWidth = Math.max(1, keyboardWidth - SIDEBAR_WIDTH);
+    const songWhites = countWhiteKeys(songLow, songHigh);
+
+    if (songWhites === 0 || rollWidth / songWhites >= MIN_WK_PX) {
+      return { low: songLow, high: songHigh };
+    }
+
+    // Windowed mode: screen too narrow for full song range — pan to follow notes
+    const maxWhites = Math.max(7, Math.floor(rollWidth / MIN_WK_PX));
+
+    // Compute centroid of notes in the next 4 seconds
+    let sum = 0, count = 0;
+    for (const note of song.notes) {
+      if (note.startTime >= currentTime && note.startTime < currentTime + 4) {
+        sum += note.pitch + transpose;
+        count++;
+      }
+    }
+    if (count > 0) {
+      const target = sum / count;
+      windowCenterRef.current += (target - windowCenterRef.current) * 0.04;
+    }
+
+    // Derive a key window centred on the smoothed MIDI centroid
+    const center = Math.round(windowCenterRef.current);
+    const semitonesNeeded = Math.ceil((maxWhites / 7) * 12);
+    let low = Math.max(MIDI_LOW, center - Math.floor(semitonesNeeded / 2));
+    let high = Math.min(MIDI_HIGH, low + semitonesNeeded);
+    if (high === MIDI_HIGH) low = Math.max(MIDI_LOW, high - semitonesNeeded);
+
+    // Fine-tune: trim to exactly maxWhites white keys
+    while (countWhiteKeys(low, high) > maxWhites && high > low) {
+      if (center - low > high - center) low++;
+      else high--;
+    }
+    return { low, high };
+  }, [song, songRange, keyboardWidth, currentTime, transpose]);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -231,22 +309,45 @@ export default function App() {
           {song && (
             <>
               <div className="view-toggle">
-                {(['pianoroll', 'sheet', 'both'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    className={`btn btn-sm ${viewMode === mode ? 'btn-active' : ''}`}
-                    onClick={() => setViewMode(mode)}
-                  >
-                    {mode === 'pianoroll' ? '📊 Bar' : mode === 'sheet' ? '🎼 Sheet' : '📊🎼 Both'}
-                  </button>
-                ))}
+                <button
+                  className={`btn btn-sm${viewMode !== 'sheet' ? ' btn-active' : ''}`}
+                  onClick={() => {
+                    // Toggle Bar: if both showing, turn off bar (→ sheet). If sheet only, turn on bar (→ both). If bar only, no-op.
+                    if (viewMode === 'pianoroll') return; // only bar, can't turn off
+                    if (viewMode === 'both') setViewMode('sheet');
+                    else setViewMode('both'); // was 'sheet', enable bar
+                  }}
+                  title="Piano Roll"
+                >
+                  Bar
+                </button>
+                <button
+                  className={`btn btn-sm${viewMode !== 'pianoroll' ? ' btn-active' : ''}`}
+                  disabled={!song.musicXml}
+                  onClick={() => {
+                    // Toggle Sheet: if both showing, turn off sheet (→ pianoroll). If pianoroll only, turn on sheet (→ both). If sheet only, no-op.
+                    if (viewMode === 'sheet') return; // only sheet, can't turn off
+                    if (viewMode === 'both') setViewMode('pianoroll');
+                    else setViewMode('both'); // was 'pianoroll', enable sheet
+                  }}
+                  title={song.musicXml ? 'Sheet Music' : 'No sheet music for this file'}
+                >
+                  Sheet
+                </button>
               </div>
               <button
-                className={`btn btn-sm btn-fingers ${rollSettings.showFingers ? 'btn-active' : ''}`}
+                className={`btn btn-sm${rollSettings.showFingers ? ' btn-active' : ''}`}
                 onClick={() => handleRollSettingsChange({ showFingers: !rollSettings.showFingers })}
                 title="Show beginner finger numbers (1–5)"
               >
-                🖐 Fingers
+                Fingers
+              </button>
+              <button
+                className={`btn btn-sm${showParticles ? ' btn-active' : ''}`}
+                onClick={() => setShowParticles((v) => !v)}
+                title="Toggle particle effects"
+              >
+                ✦ FX
               </button>
             </>
           )}
@@ -293,14 +394,12 @@ export default function App() {
             totalDuration={song.totalDuration}
             bpm={song.bpm}
             playbackRate={playbackRate}
-            viewMode={viewMode}
             onPlay={handlePlay}
             onPause={handlePause}
             onStop={handleStop}
             onTransposeChange={handleTransposeChange}
             onPlaybackRateChange={handlePlaybackRateChange}
             onSeek={handleSeek}
-            onViewModeChange={setViewMode}
             onChangeFile={handleChangeFile}
           />
 
@@ -329,6 +428,7 @@ export default function App() {
                   bpm={song.bpm}
                   settings={rollSettings}
                   onSeek={handleSeek}
+                  keyRange={keyRange}
                 />
               </div>
             )}
@@ -355,6 +455,7 @@ export default function App() {
                     bpm={song.bpm}
                     settings={rollSettings}
                     onSeek={handleSeek}
+                    keyRange={keyRange}
                   />
                 </div>
               </>
@@ -366,6 +467,7 @@ export default function App() {
                 transpose={transpose}
                 currentTime={currentTime}
                 showFingers={rollSettings.showFingers}
+                keyRange={keyRange}
               />
             </div>
 
@@ -381,6 +483,7 @@ export default function App() {
               transpose={transpose}
               currentTime={currentTime}
               keyboardRef={keyboardContainerRef}
+              enabled={showParticles}
             />
           </div>
         </main>

@@ -84,21 +84,37 @@ html, body, #root {
 
 /* Reusing some button styles from Controls but keeping them here for header */
 .btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 3px 8px;
+  font-size: 11px;
   border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, box-shadow 0.15s;
+  background: #2a2a2a;
+  color: #aaa;
+  white-space: nowrap;
 }
 
-.btn-active {
-  background: #333;
+.btn-sm:hover:not(:disabled) {
+  background: #3a3a3a;
   color: #fff;
 }
 
-.btn-fingers {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.btn-sm:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
+
+.btn-active {
+  background: #5c4fe0 !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.45), inset 0 -2px 0 rgba(0,0,0,0.25);
+}
+
 
 /* ── Landing ─────────────────────────────────────────────────── */
 .app-landing {
