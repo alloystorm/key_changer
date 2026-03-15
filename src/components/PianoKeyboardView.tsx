@@ -6,8 +6,7 @@ import {
   MIDI_HIGH, 
   NOTE_COLORS, 
   isBlack, 
-  buildKeyGeometryForRange, 
-  countWhiteKeys,
+  buildKeyGeometryForRange,
   shadeColor,
   hexToRgb,
   type KeyGeom
@@ -206,17 +205,39 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
     activeKeys.forEach((pitch) => {
       const g = keyGeom.get(pitch);
       if (!g) return;
+      const trackIdx = activeTracks.get(pitch) ?? 0;
+      const { r, g: gr, b } = hexToRgb(NOTE_COLORS[trackIdx % NOTE_COLORS.length]);
       const cx = g.x + g.w / 2;
-      const glowH = Math.min(30, keyboardHeight * 0.42);
-      const glowW = (g.w + 14);
-      const gradGlow = ctx.createLinearGradient(0, 0, 0, glowH);
-      gradGlow.addColorStop(0, 'rgba(255,255,255,0.45)');
-      gradGlow.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gradGlow;
-      ctx.fillRect(cx - glowW / 2, 0, glowW, glowH);
-      const sparkH = Math.min(6, keyboardHeight * 0.10);
-      ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.fillRect(cx - g.w / 2 - 2, 0, g.w + 4, sparkH);
+
+      if (!g.isBlack) {
+        // White key: width capped to 85 % of key so glow doesn't spill onto
+        // adjacent black keys. Taller gradient with track colour for a vivid look.
+        const glowW = g.w * 0.85;
+        const glowH = Math.min(keyboardHeight * 0.6, 55);
+        const grad = ctx.createLinearGradient(0, 0, 0, glowH);
+        grad.addColorStop(0,   `rgba(${r},${gr},${b},0.55)`);
+        grad.addColorStop(0.35,`rgba(${r},${gr},${b},0.18)`);
+        grad.addColorStop(1,   `rgba(${r},${gr},${b},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - glowW / 2, 0, glowW, glowH);
+        // Bright spark line along the top edge
+        const sparkH = Math.max(2, Math.min(4, keyboardHeight * 0.05));
+        ctx.fillStyle = `rgba(${r},${gr},${b},0.9)`;
+        ctx.fillRect(cx - glowW / 2, 0, glowW, sparkH);
+      } else {
+        // Black key: bloom slightly wider than the key for a soft halo effect.
+        const glowW = g.w * 1.5;
+        const glowH = bkH * 0.65;
+        const grad = ctx.createLinearGradient(0, 0, 0, glowH);
+        grad.addColorStop(0, `rgba(${r},${gr},${b},0.7)`);
+        grad.addColorStop(1, `rgba(${r},${gr},${b},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - glowW / 2, 0, glowW, glowH);
+        // Bright spark along the top edge, confined to key width
+        const sparkH = Math.max(2, Math.min(3, bkH * 0.06));
+        ctx.fillStyle = `rgba(${r},${gr},${b},0.95)`;
+        ctx.fillRect(cx - g.w / 2, 0, g.w, sparkH);
+      }
     });
     ctx.restore();
 
