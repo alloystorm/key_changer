@@ -229,21 +229,32 @@ export default function App() {
     return () => ro.disconnect();
   }, [song]);
 
-  // Compute song's pitch range (only recalculates when song or transpose changes)
+  // Rolling window: how far ahead/behind currentTime to scan when computing pitch range
+  const RANGE_LOOKAHEAD = 16;   // seconds
+  const RANGE_LOOKBACK  = 8;   // seconds
+  const RANGE_PAD       = 2;   // semitone padding either side
+
+  // Compute pitch range from notes in the rolling window around currentTime.
+  // On wider screens this is moot (full 88 shown). On narrow screens the
+  // keyboard trims itself to only the pitches actually coming up soon.
   const songRange = useMemo(() => {
     if (!song) return null;
     let lo = 127, hi = 0;
+    const wStart = currentTime - RANGE_LOOKBACK;
+    const wEnd   = currentTime + RANGE_LOOKAHEAD;
     for (const n of song.notes) {
+      if (n.startTime + n.duration < wStart) continue;
+      if (n.startTime > wEnd) break; // notes are time-sorted
       const p = n.pitch + transpose;
       if (p < lo) lo = p;
       if (p > hi) hi = p;
     }
     if (lo > hi) return null;
     return {
-      low: Math.max(MIDI_LOW, lo - 2),
-      high: Math.min(MIDI_HIGH, hi + 2),
+      low:  Math.max(MIDI_LOW,  lo - RANGE_PAD),
+      high: Math.min(MIDI_HIGH, hi + RANGE_PAD),
     };
-  }, [song, transpose]);
+  }, [song, transpose, currentTime]);
 
   // ────────────────────────────────────────────────────────────────────
   // Key range thresholds (CSS pixels per white key)
@@ -252,8 +263,8 @@ export default function App() {
   //    (landscape phones ~10–17px per key, tablets ~15–25px, desktop ~20–30px)
   //  < FULL_RANGE_MIN_PX  →  trim to song’s actual pitch range
   //  < SONG_RANGE_MIN_PX  →  windowed mode (pan to follow active notes)
-  const FULL_RANGE_MIN_PX = 8;
-  const SONG_RANGE_MIN_PX = 4;
+  const FULL_RANGE_MIN_PX = 12;
+  const SONG_RANGE_MIN_PX = 6;
 
   // Compute visible key range: trims to song range on narrow screens,
   // and pans to follow active notes when even the song range is too wide.
