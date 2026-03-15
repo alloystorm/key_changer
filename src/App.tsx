@@ -34,7 +34,7 @@ export default function App() {
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>('idle');
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [showParticles, setShowParticles] = useState(true);
+  const [showParticles, setShowParticles] = useState(false);
   const [keyboardWidth, setKeyboardWidth] = useState(0);
   const transposeRef = useRef(0); // keep in sync for player callbacks
   const windowCenterRef = useRef(60); // smoothed MIDI centroid for windowed key range
