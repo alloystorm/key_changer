@@ -8,9 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev        # start Vite dev server
 npm run build      # tsc type-check then Vite production build
 npm run preview    # serve the production build locally
+npm run test       # run vitest once
+npm run test:watch # run vitest in watch mode
 ```
 
-No test runner is configured.
+Tests use **vitest**. The only test file is `src/lib/fingering.test.ts`.
 
 ## Architecture
 
@@ -24,13 +26,18 @@ No test runner is configured.
 4. **State** — All app state lives in `App.tsx` (`useState`). `currentTime` is updated on every animation frame. `transpose`, `playbackRate`, `viewMode`, and `rollSettings` flow down as props.
 5. **Persistence** — `src/lib/storage.ts` wraps raw IndexedDB (`ShiftPianoDB`) to cache uploaded songs so they survive page refresh.
 
+### Shared utilities
+
+- **`src/lib/layout.ts`** — keyboard geometry constants (`MIDI_LOW=21`, `MIDI_HIGH=108`, `NOTE_COLORS`, key position helpers). Imported by all views to stay in sync.
+- **`src/lib/chords.ts`** — detects chord names from simultaneous `NoteEvent`s and returns `ChordEvent[]` (time + name). Used by views to display chord labels.
+
 ### Views
 
 All views are canvas-based and sized via `ResizeObserver`. They receive `notes`, `transpose`, and `currentTime` as props and redraw on every frame.
 
 - **`PianoRollView`** — scrolling note bar. Supports `flowDirection` (up/down), `triggerPosition` (where the play line sits), and `showFingers`.
 - **`SheetMusicView`** — renders MusicXML via `opensheetmusicdisplay`. Only visible when `ParsedSong.musicXml` is present.
-- **`PianoKeyboardView`** — 88-key keyboard (MIDI 21–108) with a 36 px sidebar. Key geometry is rebuilt when container width changes. `aspect-ratio: 52/6` keeps key proportions natural as the container narrows.
+- **`PianoKeyboardView`** — 88-key keyboard (MIDI 21–108). Key geometry is rebuilt when container width changes. `aspect-ratio: 52/6` keeps key proportions natural as the container narrows.
 
 ### Layout
 
