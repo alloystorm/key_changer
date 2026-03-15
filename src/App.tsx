@@ -48,10 +48,13 @@ export default function App() {
     setRollSettings((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // Wire player callbacks on mount
+  // Wire player callbacks on mount.
+  // onTimeUpdate is intentionally left as a no-op: currentTime is read directly
+  // from player.getCurrentTime() inside the animation RAF so both state updates
+  // (currentTime + animKeyRange) happen in the same callback → one React render.
   useEffect(() => {
     player.onStatusChange = setPlayerStatus;
-    player.onTimeUpdate = (t) => setCurrentTime(t);
+    player.onTimeUpdate = () => {};
     return () => {
       player.stop();
     };
@@ -316,9 +319,10 @@ export default function App() {
   }, [song, songRange, keyboardWidth, currentTime, transpose]);
 
   // ─── Smooth animation of the visible key range ──────────────────────────────
-  // `animKeyRange` lags behind the discrete `keyRange` target, giving a zoom+pan
-  // animation. A persistent rAF loop lerps toward `keyRangeTargetRef` every frame.
-  // Using a ref for the target avoids restarting the loop on every keyRange change.
+  // Asymmetric exponential smoothing: expand quickly (notes coming up need to be
+  // visible) and shrink slowly (barely noticeable contraction). This is also
+  // fps-independent and naturally absorbs rapid target oscillations caused by
+  // rolling-window boundary notes flickering in/out of the lookahead window.
   const keyRangeTargetRef = useRef(keyRange);
   keyRangeTargetRef.current = keyRange; // updated synchronously every render
 
@@ -327,14 +331,12 @@ export default function App() {
     { low: MIDI_LOW, high: MIDI_HIGH }
   );
 
-  // Animation speed — semitones per second. Increase for snappier pan/zoom.
-  const ANIM_KEYS_PER_SEC = 6;
-  // Stability buffer: target must hold for this many frames before we commit to it.
-  // Absorbs ±1 flips caused by rolling-window boundary notes crossing currentTime.
-  const STABLE_FRAMES = 4;
-  const pendingTargetRef = useRef(keyRange);
-  const pendingFramesRef = useRef(0);
-  const committedTargetRef = useRef(keyRange);
+  // Exponential decay constants (higher = faster settle).
+  // Expand: low decreasing or high increasing → notes need to be shown → ~1 s settle.
+  // Shrink: low increasing or high decreasing → range can contract → ~1.5 s settle.
+  // (0.8 was too slow: a portrait-mode song load shrinks ~25+ semitones and took 4+ s)
+  const EXPAND_LAMBDA = 5;
+  const SHRINK_LAMBDA = 2.0;
 
   useEffect(() => {
     let rafId: number;
@@ -352,34 +354,30 @@ export default function App() {
       const cwMove   = Math.min(Math.abs(cwDelta), 8 * dt);
       if (cwMove > 0) windowCenterRef.current = cwCur + Math.sign(cwDelta) * cwMove;
 
-      // ── Stability buffer: ignore single-frame target oscillations ────────
-      const latest = keyRangeTargetRef.current;
-      if (latest.low === pendingTargetRef.current.low &&
-          latest.high === pendingTargetRef.current.high) {
-        pendingFramesRef.current++;
-        if (pendingFramesRef.current >= STABLE_FRAMES) committedTargetRef.current = latest;
-      } else {
-        pendingTargetRef.current = { low: latest.low, high: latest.high };
-        pendingFramesRef.current = 1;
-      }
-
-      const target = committedTargetRef.current;
+      const target = keyRangeTargetRef.current;
       const { low, high } = animRangeRef.current;
 
-      // ── Instant snap on large jumps (new song / transpose ±octave) ───────
-      if (Math.abs(target.low - low) > 20 || Math.abs(target.high - high) > 20) {
+      // ── Instant snap on extreme jumps (e.g. song load on narrow screen) ──
+      if (Math.abs(target.low - low) > 48 || Math.abs(target.high - high) > 48) {
         animRangeRef.current = { low: target.low, high: target.high };
         setAnimKeyRange({ low: target.low, high: target.high });
         rafId = requestAnimationFrame(step);
         return;
       }
 
-      // ── Constant-speed linear movement (fps-independent) ─────────────────
-      const maxMove = ANIM_KEYS_PER_SEC * dt;
-      const dLow    = target.low  - low;
-      const dHigh   = target.high - high;
-      const newLow  = Math.abs(dLow)  <= maxMove ? target.low  : low  + Math.sign(dLow)  * maxMove;
-      const newHigh = Math.abs(dHigh) <= maxMove ? target.high : high + Math.sign(dHigh) * maxMove;
+      // ── Asymmetric exponential smoothing (fps-independent) ───────────────
+      const dLow  = target.low  - low;
+      const dHigh = target.high - high;
+      const lambdaLow  = dLow  < 0 ? EXPAND_LAMBDA : SHRINK_LAMBDA;
+      const lambdaHigh = dHigh > 0 ? EXPAND_LAMBDA : SHRINK_LAMBDA;
+      const factorLow  = dt > 0 ? 1 - Math.exp(-lambdaLow  * dt) : 0;
+      const factorHigh = dt > 0 ? 1 - Math.exp(-lambdaHigh * dt) : 0;
+      const newLow  = Math.abs(dLow)  < 0.001 ? target.low  : low  + dLow  * factorLow;
+      const newHigh = Math.abs(dHigh) < 0.001 ? target.high : high + dHigh * factorHigh;
+
+      // Read currentTime here (same callback as setAnimKeyRange) so React batches
+      // both into a single render, halving canvas redraws per frame.
+      setCurrentTime(player.getCurrentTime());
 
       if (newLow !== animRangeRef.current.low || newHigh !== animRangeRef.current.high) {
         animRangeRef.current = { low: newLow, high: newHigh };

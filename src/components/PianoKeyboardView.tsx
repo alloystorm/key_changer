@@ -30,7 +30,6 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
   const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
-  const rangeRef = useRef({ low: MIDI_LOW, high: MIDI_HIGH });
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -44,25 +43,19 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
     const rollWidth = width - SIDEBAR_WIDTH;
     const keyboardHeight = height;
 
-    // Integer-expanded range: geometry is always built for whole keys.
-    // The fractional edges (rangeLow/rangeHigh may be floats from animation)
-    // are handled by a canvas scale+translate applied below.
-    const iLow  = Math.floor(rangeLow);
-    const iHigh = Math.ceil(rangeHigh);
-
-    const existingWkW = keyGeomRef.current.size > 0
-      ? (keyGeomRef.current.get(!isBlack(iLow) ? iLow : iLow + 1)?.w ?? 0) + 1
-      : 0;
-    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(iLow, iHigh));
-    if (
-      Math.abs(existingWkW - expectedWkW) > 0.5 ||
-      rangeRef.current.low !== iLow ||
-      rangeRef.current.high !== iHigh
-    ) {
-      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, iLow, iHigh);
-      rangeRef.current = { low: iLow, high: iHigh };
+    // Geometry is always built for the full 88-key range [MIDI_LOW, MIDI_HIGH].
+    // This keeps the transform span constant (87 semitones) so scaleX/transX
+    // are perfectly smooth — no discontinuity when float boundaries cross integers.
+    const expectedWkW = rollWidth / 52; // 52 white keys in the full 88-note range
+    const existingWkW = keyGeomRef.current.get(MIDI_LOW)?.w ?? 0;
+    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, MIDI_LOW, MIDI_HIGH);
     }
     const keyGeom = keyGeomRef.current;
+
+    // Iteration bounds: only visit keys inside the visible float range (performance).
+    const drawLow  = Math.floor(rangeLow);
+    const drawHigh = Math.ceil(rangeHigh);
 
     const activeKeys = new Set<number>();
     const activeTracks = new Map<number, number>();
@@ -74,7 +67,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
 
     notes.forEach((note) => {
       const pitch = note.pitch + transpose;
-      if (pitch < iLow || pitch > iHigh) return;
+      if (pitch < drawLow || pitch > drawHigh) return;
       const isCurrentlyActive = note.startTime <= currentTime && note.startTime + note.duration >= currentTime;
 
       if (isCurrentlyActive) {
@@ -97,17 +90,15 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
     ctx.clearRect(0, 0, width, height);
 
     // ── Sub-pixel pan/zoom transform ──────────────────────────────────────────
-    // Treat the pitch range as linear in x-space.  The geometry was built for
-    // [iLow, iHigh] spanning rollWidth.  The float range [rangeLow, rangeHigh]
-    // is a sub-interval of [iLow, iHigh], so we scale+translate so that
-    // sub-interval fills rollWidth exactly.
-    const span    = Math.max(1, iHigh - iLow);
-    const fracLow  = (rangeLow  - iLow) / span;
-    const fracHigh = (rangeHigh - iLow) / span;
+    // Geometry spans [MIDI_LOW, MIDI_HIGH] = 87 semitones → constant span,
+    // so fracLow/fracHigh/scaleX change smoothly with no integer-boundary snaps.
+    const span     = MIDI_HIGH - MIDI_LOW; // 87, never changes
+    const fracLow  = (rangeLow  - MIDI_LOW) / span;
+    const fracHigh = (rangeHigh - MIDI_LOW) / span;
     const visFrac  = Math.max(0.001, fracHigh - fracLow);
     const scaleX   = 1 / visFrac;
     const transX   = -fracLow * rollWidth * scaleX;
-
+    
     const wkH = keyboardHeight - 1;
     const bkH = keyboardHeight * 0.58;
 
@@ -123,7 +114,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
     ctx.scale(scaleX, 1);
 
     // White keys
-    for (let midi = iLow; midi <= iHigh; midi++) {
+    for (let midi = drawLow; midi <= drawHigh; midi++) {
       if (isBlack(midi)) continue;
       const geom = keyGeom.get(midi)!;
       const active = activeKeys.has(midi);
@@ -171,7 +162,7 @@ export function PianoKeyboardView({ notes, transpose, currentTime, showFingers, 
     }
 
     // Black keys
-    for (let midi = iLow; midi <= iHigh; midi++) {
+    for (let midi = drawLow; midi <= drawHigh; midi++) {
       if (!isBlack(midi)) continue;
       const geom = keyGeom.get(midi);
       if (!geom) continue;

@@ -89,7 +89,6 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
   const keyGeomRef = useRef<Map<number, KeyGeom>>(new Map());
-  const rangeRef = useRef({ low: MIDI_LOW, high: MIDI_HIGH });
 
   const { flowDirection, triggerPosition, showFingers } = settings;
   const rangeLow  = keyRange?.low  ?? MIDI_LOW;
@@ -107,30 +106,23 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     const rollWidth = width - SIDEBAR_WIDTH;
     const rollHeight = height;
 
-    // Integer-expanded range for geometry; float edges handled by transform below
-    const iLow  = Math.floor(rangeLow);
-    const iHigh = Math.ceil(rangeHigh);
-
-    // Rebuild key geometry when width or integer range changes
-    const existingWkW = keyGeomRef.current.size > 0
-      ? (keyGeomRef.current.get(!isBlack(iLow) ? iLow : iLow + 1)?.w ?? 0) + 1
-      : 0;
-    const expectedWkW = rollWidth / Math.max(1, countWhiteKeys(iLow, iHigh));
-    if (
-      Math.abs(existingWkW - expectedWkW) > 0.5 ||
-      rangeRef.current.low !== iLow ||
-      rangeRef.current.high !== iHigh
-    ) {
-      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, iLow, iHigh);
-      rangeRef.current = { low: iLow, high: iHigh };
+    // Geometry always built for full 88-key range — same fix as PianoKeyboardView:
+    // constant span = 87 semitones so the transform has no integer-boundary snaps.
+    const expectedWkW = rollWidth / 52;
+    const existingWkW = keyGeomRef.current.get(MIDI_LOW)?.w ?? 0;
+    if (Math.abs(existingWkW - expectedWkW) > 0.5) {
+      keyGeomRef.current = buildKeyGeometryForRange(rollWidth, MIDI_LOW, MIDI_HIGH);
     }
     const keyGeom = keyGeomRef.current;
 
+    // Iteration bounds: floor/ceil for performance (skip off-screen keys/notes).
+    const drawLow  = Math.floor(rangeLow);
+    const drawHigh = Math.ceil(rangeHigh);
+
     // ── Sub-pixel pan/zoom transform ─────────────────────────────────────
-    // Map float [rangeLow, rangeHigh] → full rollWidth, same as PianoKeyboardView.
-    const span     = Math.max(1, iHigh - iLow);
-    const fracLow  = (rangeLow  - iLow) / span;
-    const fracHigh = (rangeHigh - iLow) / span;
+    const span     = MIDI_HIGH - MIDI_LOW; // 87, constant
+    const fracLow  = (rangeLow  - MIDI_LOW) / span;
+    const fracHigh = (rangeHigh - MIDI_LOW) / span;
     const visFrac  = Math.max(0.001, fracHigh - fracLow);
     const scaleX   = 1 / visFrac;
     const transX   = -fracLow * rollWidth * scaleX;
@@ -156,7 +148,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     });
 
     // Octave divider lines
-    for (let m = iLow; m <= iHigh; m++) {
+    for (let m = drawLow; m <= drawHigh; m++) {
       if (m % 12 === 0 && keyGeom.has(m)) {
         const geom = keyGeom.get(m)!;
         ctx.strokeStyle = '#2a2a2a';
@@ -232,7 +224,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
 
     notes.forEach((note) => {
       const pitch = note.pitch + transpose;
-      if (pitch < iLow || pitch > iHigh) return;
+      if (pitch < drawLow || pitch > drawHigh) return;
       if (note.startTime <= currentTime && note.startTime + note.duration >= currentTime) {
         activeKeys.add(pitch);
         activeTracks.set(pitch, note.track);
@@ -251,7 +243,7 @@ export function PianoRollView({ notes, transpose, currentTime, totalDuration, bp
     // ── Draw notes (white pass, then black on top) ────────────────────────
     const drawNote = (note: NoteEvent, blackPass: boolean) => {
       const pitch = note.pitch + transpose;
-      if (pitch < iLow || pitch > iHigh) return;
+      if (pitch < drawLow || pitch > drawHigh) return;
       const geom = keyGeom.get(pitch);
       if (!geom || geom.isBlack !== blackPass) return;
 
